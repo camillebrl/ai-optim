@@ -294,6 +294,145 @@ def ResNeXt29_32x4d():
 
 
 
+
+
+######################################################################################################################################################
+###################################################################CountPara&FLOPS####################################################################
+######################################################################################################################################################
+
+def count_conv2d(m, x, y):
+    x = x[0] # remove tuple
+
+    fin = m.in_channels
+    fout = m.out_channels
+    sh, sw = m.kernel_size
+
+    # ops per output element
+    kernel_mul = sh * sw * fin
+    kernel_add = sh * sw * fin - 1
+    bias_ops = 1 if m.bias is not None else 0
+    kernel_mul = kernel_mul/2 # FP16
+    ops = kernel_mul + kernel_add + bias_ops
+
+    # total ops
+    num_out_elements = y.numel()
+    total_ops = num_out_elements * ops
+
+    print("Conv2d: S_c={}, F_in={}, F_out={}, P={}, params={}, operations={}".format(sh,fin,fout,x.size()[2:].numel(),int(m.total_params.item()),int(total_ops)))
+    # incase same conv is used multiple times
+    m.total_ops += torch.Tensor([int(total_ops)])
+
+
+def count_bn2d(m, x, y):
+    x = x[0] # remove tuple
+
+    nelements = x.numel()
+    total_sub = 2*nelements
+    total_div = nelements
+    total_ops = total_sub + total_div
+
+    m.total_ops += torch.Tensor([int(total_ops)])
+    print("Batch norm: F_in={} P={}, params={}, operations={}".format(x.size(1),x.size()[2:].numel(),int(m.total_params.item()),int(total_ops)))
+
+
+def count_relu(m, x, y):
+    x = x[0]
+
+    nelements = x.numel()
+    total_ops = nelements
+
+    m.total_ops += torch.Tensor([int(total_ops)])
+    print("ReLU: F_in={} P={}, params={}, operations={}".format(x.size(1),x.size()[2:].numel(),0,int(total_ops)))
+
+
+
+def count_avgpool(m, x, y):
+    x = x[0]
+    total_add = torch.prod(torch.Tensor([m.kernel_size])) - 1
+    total_div = 1
+    kernel_ops = total_add + total_div
+    num_elements = y.numel()
+    total_ops = kernel_ops * num_elements
+
+    m.total_ops += torch.Tensor([int(total_ops)])
+    print("AvgPool: S={}, F_in={}, P={}, params={}, operations={}".format(m.kernel_size,x.size(1),x.size()[2:].numel(),0,int(total_ops)))
+
+def count_linear(m, x, y):
+    # per output element
+    total_mul = m.in_features/2
+    total_add = m.in_features - 1
+    num_elements = y.numel()
+    total_ops = (total_mul + total_add) * num_elements
+    print("Linear: F_in={}, F_out={}, params={}, operations={}".format(m.in_features,m.out_features,int(m.total_params.item()),int(total_ops)))
+    m.total_ops += torch.Tensor([int(total_ops)])
+
+def count_sequential(m, x, y):
+    print ("Sequential: No additional parameters  / op")
+
+# custom ops could be used to pass variable customized ratios for quantization
+def profile(model, input_size, custom_ops = {}):
+
+    model.eval()
+
+    def add_hooks(m):
+        if len(list(m.children())) > 0: return
+        m.register_buffer('total_ops', torch.zeros(1))
+        m.register_buffer('total_params', torch.zeros(1))
+
+        for p in m.parameters():
+            m.total_params += torch.Tensor([p.numel()]) / 2 # Division Free quantification
+
+        if isinstance(m, nn.Conv2d):
+            m.register_forward_hook(count_conv2d)
+        elif isinstance(m, nn.BatchNorm2d):
+            m.register_forward_hook(count_bn2d)
+        elif isinstance(m, nn.ReLU):
+            m.register_forward_hook(count_relu)
+        elif isinstance(m, (nn.AvgPool2d)):
+            m.register_forward_hook(count_avgpool)
+        elif isinstance(m, nn.Linear):
+            m.register_forward_hook(count_linear)
+        elif isinstance(m, nn.Sequential):
+            m.register_forward_hook(count_sequential)
+        else:
+            print("Not implemented for ", m)
+
+    model.apply(add_hooks)
+
+    x = torch.zeros(input_size)
+    model(x)
+
+    total_ops = 0
+    total_params = 0
+    for m in model.modules():
+        if len(list(m.children())) > 0: continue
+        total_ops += m.total_ops
+        total_params += m.total_params
+
+    return total_ops, total_params
+
+def count_param_and_flops(model,dataset):
+    if dataset == "cifar10":
+        # Resnet18 - Reference for CIFAR 10
+        ref_params = 5586981
+        ref_flops  = 834362880
+    elif dataset == "cifar100":
+        # WideResnet-28-10 - Reference for CIFAR 100
+        ref_params = 36500000
+        ref_flops  = 10490000000
+
+    flops, params = profile(model, (1,3,32,32))
+    flops, params = flops.item(), params.item()
+
+    score_flops = flops / ref_flops
+    score_params = params / ref_params
+    score = score_flops + score_params
+    print("Flops: {}, Params: {}".format(flops,params))
+    print("Score flops: {} Score Params: {}".format(score_flops,score_params))
+    print("Final score: {}".format(score))
+    return flops, params, score_flops,score_params,score
+
+
 ######################################################################################################################################################
 ###################################################################BinaryConnect######################################################################
 ######################################################################################################################################################
@@ -392,17 +531,17 @@ class Orthogo():
                 self.target_modules.append(m)
     def soft_orthogonality_regularization(self,reg_coef):
         regul=0.
-        for m in self.target_modules:
+        for i,m in enumerate(self.target_modules):
             width=np.prod(list(m.weight.data[0].size()))
             height=m.weight.data.size()[0]
             w=m.weight.data.view(width,height)
-            regul+=reg_coef*torch.norm(torch.transpose(w,0,1).matmul(w)-torch.eye(height,device="cuda:0"))**2
+            reg_coef_i=reg_coef
+            regul+=reg_coef_i*torch.norm(torch.transpose(w,0,1).matmul(w)-torch.eye(height,device="cuda:0"))**2
             #reg_grad=4*reg_coef*w*(torch.transpose(w,0,1)*w-torch.eye(height))
         return regul # le terme de régularisation est sur tous les modules! (somme)
-            # on peut même tester avec plusieurs reg_coefs (en fonction des modules)
-            # bien régulariser les 1ères couches est interressant, et moins bien celles d'après. Donc le reg_coef doit être plus grand
-            # plus reg_coef est grand, plus il sera régularisé. On peut faire un regul_coef variable.
-            # On peut tester de diviser reg_coef d'un module à l'autre (voir comme les méthodos du scheduler)
+            # bien régulariser les 1ères couches est interressant, et moins bien celles d'après. Donc le reg_coef doit être plus grand au début
+            # plus reg_coef est grand, plus il sera régularisé. Donc, on diminue le reg_coef module après module
+            # On peut tester de diviser reg_coef d'un module à l'autre (même méthodos que schedulers?)
     def double_soft_orthogonality_regularization(self,reg_coef):
         regul=0
         for m in self.target_modules:
@@ -527,7 +666,7 @@ def train_model(model,device,loss_function,n_epochs,trainloader,validloader,sche
 reg_coefs=[0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9]
 functions=["simple","double","mutual_coherence","spectral_isometry"]
 
-def models_variant_archi_param(trainloader,validloader,n_epochs=200,learning_rate=0.001,momentum=0.95,weight_decay=5e-5,method_gradient_descent="SGD",method_scheduler="CosineAnnealingLR",loss_function=nn.CrossEntropyLoss(),dataset="minicifar"):
+def models_variant_archi_param(trainloader,validloader,n_epochs=2,learning_rate=0.001,momentum=0.95,weight_decay=5e-5,method_gradient_descent="SGD",method_scheduler="CosineAnnealingLR",loss_function=nn.CrossEntropyLoss(),dataset="minicifar"):
     for model_name,model_nb_blocks in zip(nums_blocks.keys(),nums_blocks.values()):
         for div_param in range(1,9):
             model=ResNet(Bottleneck,model_nb_blocks,div=div_param,num_classes=int(dataset[dataset.find("1"):]))
@@ -543,8 +682,8 @@ def models_variant_archi_param(trainloader,validloader,n_epochs=200,learning_rat
                     model_or=model
                     model_orthogo=Orthogo(model_or)
                     results=train_model(model,device,loss_function,n_epochs,trainloader,validloader,scheduler,optimizer,model_orthogo,function,reg_coef)
-                    nb_para=count_parameters(model)
-                    file_name=f"{model_name}_div_param_of_{div_param}_nb_param_of_{nb_para}_reg_function_of_{function}_reg_coef_of_{reg_coef}_{learning_rate}_{momentum}_{weight_decay}_{method_gradient_descent}_{method_scheduler}.csv"
+                    flops,nb_para,flops_score,para_score,score=count_param_and_flops(model,dataset)
+                    file_name=f"{model_name}_div_param_of_{div_param}_nb_param_of_{nb_para}_nb_flops_{flops}_scoreflops_{flops_score}_scorepara_{para_score}_score_{score}_function_of_{function}_reg_coef_of_{reg_coef}_{learning_rate}_{momentum}_{weight_decay}_{method_gradient_descent}_{method_scheduler}.csv"
                     results.to_csv(f"./{dataset}/model_{function}_reg_dif_para/"+file_name)
 
 for dataset in ["cifar10","cifar100"]:

@@ -441,7 +441,7 @@ def count_parameters(model):
 ###################################################################Application_model##################################################################
 ######################################################################################################################################################
 
-def train(epoch,model,optimizer,device,trainloader,loss_function,model_orthogo,function,reg_coef):
+def train(epoch,model,optimizer,device,trainloader,loss_function):
     print('\nEpoch: %d' % epoch)
     model.train()
     train_loss = 0
@@ -452,14 +452,6 @@ def train(epoch,model,optimizer,device,trainloader,loss_function,model_orthogo,f
         optimizer.zero_grad()
         outputs = model(inputs)
         loss = loss_function(outputs, targets)
-        if function == "simple":
-            loss+=model_orthogo.soft_orthogonality_regularization(reg_coef)
-        elif function == "double":
-            loss+=model_orthogo.double_soft_orthogonality_regularization(reg_coef)
-        elif function == "mutual_coherence":
-            loss+=model_orthogo.mutual_coherence_orthogonality_regularization(reg_coef)
-        elif function == "spectral_isometry":
-            loss+=model_orthogo.spectral_isometry_orthogonality_regularization(reg_coef)
         loss.backward()
         optimizer.step()
         train_loss += loss.item()
@@ -497,7 +489,7 @@ def get_schedulers(optimizer,n_epochs):
 
 
 
-def train_model(model,device,loss_function,n_epochs,trainloader,validloader,scheduler,optimizer,model_orthogo,function,reg_coef):
+def train_model(model,device,loss_function,n_epochs,trainloader,validloader,scheduler,optimizer):
     best_acc_epoch=0
     results={"epoch":[],"train_accuracy":[],"validation_accuracy":[]}
     epoch=0
@@ -505,7 +497,7 @@ def train_model(model,device,loss_function,n_epochs,trainloader,validloader,sche
     overfit_counter=0
     previous_dif=0
     while epoch < n_epochs and overfit_counter < 10:
-        train_acc=train(epoch,model,optimizer,device,trainloader,loss_function,model_orthogo,function,reg_coef) 
+        train_acc=train(epoch,model,optimizer,device,trainloader,loss_function) 
         valid_acc=validation(epoch,model,device,validloader)
         scheduler.step()
         print(train_acc,valid_acc)
@@ -525,35 +517,26 @@ def train_model(model,device,loss_function,n_epochs,trainloader,validloader,sche
 
 
 reg_coefs=[0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9]
-functions=["simple","double","mutual_coherence","spectral_isometry"]
 
-def models_variant_archi_param(trainloader,validloader,n_epochs=200,learning_rate=0.001,momentum=0.95,weight_decay=5e-5,method_gradient_descent="SGD",method_scheduler="CosineAnnealingLR",loss_function=nn.CrossEntropyLoss(),dataset="minicifar"):
-    for model_name,model_nb_blocks in zip(nums_blocks.keys(),nums_blocks.values()):
-        for div_param in range(1,9):
-            model=ResNet(Bottleneck,model_nb_blocks,div=div_param,num_classes=int(dataset[dataset.find("1"):]))
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
-            if device == 'cuda':
-                model = torch.nn.DataParallel(model)
-                cudnn.benchmark = True
-            optimizer = optim.SGD(model.parameters(), lr=learning_rate,
-                                            momentum=momentum, weight_decay=weight_decay)
-            scheduler=get_schedulers(optimizer,n_epochs)[method_scheduler]
-            for function in functions:
-                for reg_coef in reg_coefs:
-                    model_or=model
-                    model_orthogo=Orthogo(model_or)
-                    results=train_model(model,device,loss_function,n_epochs,trainloader,validloader,scheduler,optimizer,model_orthogo,function,reg_coef)
-                    nb_para=count_parameters(model)
-                    file_name=f"{model_name}_div_param_of_{div_param}_nb_param_of_{nb_para}_reg_function_of_{function}_reg_coef_of_{reg_coef}_{learning_rate}_{momentum}_{weight_decay}_{method_gradient_descent}_{method_scheduler}.csv"
-                    results.to_csv(f"./{dataset}/model_{function}_reg_dif_para/"+file_name)
 
-for dataset in ["cifar10","cifar100"]:
+def models_variant_archi_param(trainloader,validloader,function,n_epochs=1,learning_rate=0.001,momentum=0.95,weight_decay=5e-5,method_gradient_descent="SGD",method_scheduler="CosineAnnealingLR",loss_function=nn.CrossEntropyLoss(),dataset="minicifar"):
+    for model_id in cfg_chosen.keys():
+        model=VGG(model_id)
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        if device == 'cuda':
+            model = torch.nn.DataParallel(model)
+            cudnn.benchmark = True
+        optimizer = optim.SGD(model.parameters(), lr=learning_rate,
+                                        momentum=momentum, weight_decay=weight_decay)
+        scheduler=get_schedulers(optimizer,n_epochs)[method_scheduler]
+        file_name=f"{model_id}_{learning_rate}_{momentum}_{weight_decay}_{method_gradient_descent}_{method_scheduler}.csv"
+        for reg_coef in reg_coefs:
+            # model_or=model
+            # model_orthogo=Orthogo(model_or)
+            results=train_model(model,device,loss_function,n_epochs,trainloader,validloader,scheduler,optimizer)
+            results.to_csv(f"./{dataset}/model_with_dif_para/"+"nb_of_para_of_"+str(count_parameters(model.model))+"_"+file_name)
 
-    if dataset == "cifar10":
-        trainloader=train_cifar10
-        testloader=test_cifar10
-    elif dataset == "cifar100":
-        trainloader=train_cifar100
-        testloader=test_cifar100
 
-    models_variant_archi_param(trainloader=trainloader,validloader=testloader,dataset=dataset)
+
+
+models_variant_archi_param(trainloader=train_cifar10,validloader=test_cifar10,dataset="cifar10",function="simple")

@@ -14,12 +14,46 @@ import pandas as pd
 from torchvision import models
 import torch.nn.functional as F
 from torch.utils.data.dataloader import DataLoader
-from torchvision.datasets import CIFAR100
+from torchvision.datasets import CIFAR100, CIFAR10
 import numpy as np
+import torch.nn.utils
 
-rootdir = './data/cifar100'
-trainloader = CIFAR100(rootdir,train=True,download=True)
-testloader = CIFAR100(rootdir,train=False,download=True)
+normalize_scratch = transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+
+# Data augmentation is needed in order to train from scratch
+transform_train = transforms.Compose([
+    transforms.RandomCrop(32, padding=4),
+    transforms.RandomHorizontalFlip(), # prend l'image de manière aléatoire et la tourne en mode miroir
+    transforms.ToTensor(), # objigatoire pour pytorch: ne comprend que les tensors
+    normalize_scratch, # centre-réduit chaque tensor de l'image
+])
+# A noter: ici, on ne fait que changer la même image, on ne met pas différentes versions de l'image, ce n'est pas vraiment du data augmentation
+# Il aurait fallu prendre le dataset, le multiplier, et appliquer cette transformation (flip, crop) sur la moitié du dataset par exemple
+
+transform_test = transforms.Compose([
+    transforms.ToTensor(),
+    normalize_scratch,
+]) # On ne fait pas le flip et le crop pour le test
+
+
+### The data from CIFAR100 will be downloaded in the following dataset
+rootdir_cifar100 = './data/cifar100'
+
+c100train = CIFAR100(rootdir_cifar100,train=True,download=True,transform=transform_train)
+c100test = CIFAR100(rootdir_cifar100,train=False,download=True,transform=transform_test)
+
+train_cifar100=DataLoader(c100train,batch_size=32)
+test_cifar100=DataLoader(c100test,batch_size=32)
+
+### The data from CIFAR10 will be downloaded in the following dataset
+rootdir_cifar10 = './data/cifar10'
+
+c10train = CIFAR10(rootdir_cifar10,train=True,download=True,transform=transform_train)
+c10test = CIFAR10(rootdir_cifar10,train=False,download=True,transform=transform_test)
+
+train_cifar10=DataLoader(c10train,batch_size=32)
+test_cifar10=DataLoader(c10test,batch_size=32)
+
 
 
 
@@ -141,18 +175,18 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, num_blocks, num_classes=10):
+    def __init__(self, block, num_blocks, div=1, num_classes=10):
         super(ResNet, self).__init__()
-        self.in_planes = 64
+        self.in_planes = 64//div
 
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=3,
+        self.conv1 = nn.Conv2d(3, 64//div, kernel_size=3,
                                stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
-        self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
-        self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
-        self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
-        self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
-        self.linear = nn.Linear(512*block.expansion, num_classes)
+        self.layer1 = self._make_layer(block, 64//div, num_blocks[0], stride=1)
+        self.layer2 = self._make_layer(block, 128//div, num_blocks[1], stride=2)
+        self.layer3 = self._make_layer(block, 256//div, num_blocks[2], stride=2)
+        self.layer4 = self._make_layer(block, 512//div, num_blocks[3], stride=2)
+        self.linear = nn.Linear((512//div)*block.expansion, num_classes)
 
     def _make_layer(self, block, planes, num_blocks, stride):
         strides = [stride] + [1]*(num_blocks-1)
@@ -173,26 +207,7 @@ class ResNet(nn.Module):
         out = self.linear(out)
         return out
 
-
-def ResNet18():
-    return ResNet(BasicBlock, [2, 2, 2, 2])
-
-
-def ResNet34():
-    return ResNet(BasicBlock, [3, 4, 6, 3])
-
-
-def ResNet50():
-    return ResNet(Bottleneck, [3, 4, 6, 3])
-
-
-def ResNet101():
-    return ResNet(Bottleneck, [3, 4, 23, 3])
-
-
-def ResNet152():
-    return ResNet(Bottleneck, [3, 8, 36, 3])
-
+nums_blocks={"ResNet18":[2, 2, 2, 2],"ResNet34":[3, 4, 6, 3],"ResNet50":[3, 4, 6, 3],"ResNet101":[3, 4, 23, 3],"ResNet152":[3, 8, 36, 3]}
 
 ######################################################################################################################################################
 ###################################################################ResNext############################################################################
@@ -280,7 +295,7 @@ def ResNeXt29_32x4d():
 
 
 ######################################################################################################################################################
-###################################################################BinaryConnect############################################################################
+###################################################################BinaryConnect######################################################################
 ######################################################################################################################################################
 
 class BC():
@@ -364,6 +379,10 @@ class BC():
 
 
 
+
+######################################################################################################################################################
+###################################################################Regularisation#####################################################################
+######################################################################################################################################################
 class Orthogo():
     def __init__(self,model):
         self.model=model
@@ -377,24 +396,52 @@ class Orthogo():
             width=np.prod(list(m.weight.data[0].size()))
             height=m.weight.data.size()[0]
             w=m.weight.data.view(width,height)
-            regul+=reg_coef*(torch.transpose(w,0,1).dot(w)-torch.eye(height))**2
+            regul+=reg_coef*torch.norm(torch.transpose(w,0,1).matmul(w)-torch.eye(height,device="cuda:0"))**2
             #reg_grad=4*reg_coef*w*(torch.transpose(w,0,1)*w-torch.eye(height))
         return regul # le terme de régularisation est sur tous les modules! (somme)
             # on peut même tester avec plusieurs reg_coefs (en fonction des modules)
             # bien régulariser les 1ères couches est interressant, et moins bien celles d'après. Donc le reg_coef doit être plus grand
             # plus reg_coef est grand, plus il sera régularisé. On peut faire un regul_coef variable.
             # On peut tester de diviser reg_coef d'un module à l'autre (voir comme les méthodos du scheduler)
+    def double_soft_orthogonality_regularization(self,reg_coef):
+        regul=0
+        for m in self.target_modules:
+            width=np.prod(list(m.weight.data[0].size()))
+            height=m.weight.data.size()[0]
+            w=m.weight.data.view(width,height)
+            regul+=reg_coef*(torch.norm(torch.transpose(w,0,1).matmul(w)-torch.eye(height,device="cuda:0"))**2 + torch.norm(w.matmul(torch.transpose(w,0,1))-torch.eye(height,device="cuda:0"))**2)
+        return regul
+    def mutual_coherence_orthogonality_regularization(self,reg_coef):
+        regul=0
+        for m in self.target_modules:
+            width=np.prod(list(m.weight.data[0].size()))
+            height=m.weight.data.size()[0]
+            w=m.weight.data.view(width,height)
+            regul+=reg_coef*(torch.max(torch.abs((torch.transpose(w,0,1).matmul(w)-torch.eye(height,device="cuda:0"))**2)))
+        return regul
+    def spectral_isometry_orthogonality_regularization(self,reg_coef):
+        regul=0
+        for m in self.target_modules:
+            width=np.prod(list(m.weight.data[0].size()))
+            height=m.weight.data.size()[0]
+            w=m.weight.data.view(width,height)
+            regul+=reg_coef*(torch.nn.utils.spectral_norm((torch.transpose(w,0,1).matmul(w)-torch.eye(height,device="cuda:0"))))
+        return regul
 
-
-
+######################################################################################################################################################
+###################################################################CountParameters####################################################################
+######################################################################################################################################################
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
     # p.numel: compte les éléments de p
     # requires_grad: pour déterminer les paramètres que le modèle peut apprendre (car ce sont ceux qui vont jouer dans la descente de gradient)
 
+######################################################################################################################################################
+###################################################################Application_model##################################################################
+######################################################################################################################################################
 
-def train(epoch,model,optimizer,device,model_orthogo,trainloader=trainloader,loss_function=nn.CrossEntropyLoss()):
+def train(epoch,model,optimizer,device,trainloader,loss_function,model_orthogo,function,reg_coef):
     print('\nEpoch: %d' % epoch)
     model.train()
     train_loss = 0
@@ -405,7 +452,14 @@ def train(epoch,model,optimizer,device,model_orthogo,trainloader=trainloader,los
         optimizer.zero_grad()
         outputs = model(inputs)
         loss = loss_function(outputs, targets)
-        #loss=loss+model_orthogo.soft_orthogonality_regularization(0.2)
+        if function == "simple":
+            loss+=model_orthogo.soft_orthogonality_regularization(reg_coef)
+        elif function == "double":
+            loss+=model_orthogo.double_soft_orthogonality_regularization(reg_coef)
+        elif function == "mutual_coherence":
+            loss+=model_orthogo.mutual_coherence_orthogonality_regularization(reg_coef)
+        elif function == "spectral_isometry":
+            loss+=model_orthogo.spectral_isometry_orthogonality_regularization(reg_coef)
         loss.backward()
         optimizer.step()
         train_loss += loss.item()
@@ -414,6 +468,7 @@ def train(epoch,model,optimizer,device,model_orthogo,trainloader=trainloader,los
         correct += predicted.eq(targets).sum().item()
     acc = 100.*correct/total
     return acc
+
 
 
 def validation(epoch,model,device,validloader):
@@ -431,7 +486,6 @@ def validation(epoch,model,device,validloader):
     return acc    
 
 
-    
 
 def get_schedulers(optimizer,n_epochs):
     schedulers={
@@ -443,7 +497,7 @@ def get_schedulers(optimizer,n_epochs):
 
 
 
-def train_model(model,device,loss_function,n_epochs,trainloader,validloader,scheduler,optimizer,model_orthogo):
+def train_model(model,device,loss_function,n_epochs,trainloader,validloader,scheduler,optimizer,model_orthogo,function,reg_coef):
     best_acc_epoch=0
     results={"epoch":[],"train_accuracy":[],"validation_accuracy":[]}
     epoch=0
@@ -451,7 +505,7 @@ def train_model(model,device,loss_function,n_epochs,trainloader,validloader,sche
     overfit_counter=0
     previous_dif=0
     while epoch < n_epochs and overfit_counter < 10:
-        train_acc=train(epoch,model,optimizer,device,model_orthogo,trainloader,loss_function) 
+        train_acc=train(epoch,model,optimizer,device,trainloader,loss_function,model_orthogo,function,reg_coef) 
         valid_acc=validation(epoch,model,device,validloader)
         scheduler.step()
         print(train_acc,valid_acc)
@@ -470,9 +524,10 @@ def train_model(model,device,loss_function,n_epochs,trainloader,validloader,sche
     return pd.DataFrame.from_dict(results).set_index("epoch")
 
 
+reg_coefs=[0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9]
 
 
-def models_variant_archi_param(n_epochs=2,learning_rate=0.001,momentum=0.95,weight_decay=5e-5,method_gradient_descent="SGD",method_scheduler="CosineAnnealingLR",loss_function=nn.CrossEntropyLoss(),trainloader=trainloader,validloader=testloader,dataset="minicifar"):
+def models_variant_archi_param(trainloader,validloader,function,n_epochs=1,learning_rate=0.001,momentum=0.95,weight_decay=5e-5,method_gradient_descent="SGD",method_scheduler="CosineAnnealingLR",loss_function=nn.CrossEntropyLoss(),dataset="minicifar"):
     for model_id in cfg_chosen.keys():
         model=VGG(model_id)
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -483,10 +538,13 @@ def models_variant_archi_param(n_epochs=2,learning_rate=0.001,momentum=0.95,weig
                                         momentum=momentum, weight_decay=weight_decay)
         scheduler=get_schedulers(optimizer,n_epochs)[method_scheduler]
         file_name=f"{model_id}_{learning_rate}_{momentum}_{weight_decay}_{method_gradient_descent}_{method_scheduler}.csv"
-        #results.to_csv(f"./{dataset}/models_binarized_with_dif_nb_param/"+str(count_parameters(model.model))+"_"+file_name)
-        model_orthogo=Orthogo(model)
-        results=train_model(model,device,loss_function,n_epochs,trainloader,validloader,scheduler,optimizer,model_orthogo=model_orthogo)
+        for reg_coef in reg_coefs:
+            model_or=model
+            model_orthogo=Orthogo(model_or)
+            results=train_model(model,device,loss_function,n_epochs,trainloader,validloader,scheduler,optimizer,model_orthogo,function,reg_coef)
+            results.to_csv(f"./{dataset}/models_"+function+"reg_dif_para/"+"reg_coef_of_"+str(reg_coef)+"nb_of_para_of_"+str(count_parameters(model))+"_"+file_name)
 
 
 
-models_variant_archi_param(trainloader=trainloader,validloader=testloader,dataset="minicifar")
+
+models_variant_archi_param(trainloader=train_cifar10,validloader=test_cifar10,dataset="cifar10",function="simple")

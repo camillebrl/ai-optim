@@ -17,6 +17,8 @@ from torch.utils.data.dataloader import DataLoader
 from torchvision.datasets import CIFAR100, CIFAR10
 import numpy as np
 import torch.nn.utils
+import random
+import torch.nn.utils.prune as prune
 
 normalize_scratch = transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
 
@@ -292,6 +294,144 @@ def ResNeXt29_8x64d():
 def ResNeXt29_32x4d():
     return ResNeXt(num_blocks=[3,3,3], cardinality=32, bottleneck_width=4)
 
+######################################################################################################################################################
+###################################################################CountPara&FLOPS####################################################################
+######################################################################################################################################################
+
+def count_conv2d(m, x, y):
+    x = x[0] # remove tuple
+
+    fin = m.in_channels
+    fout = m.out_channels
+    sh, sw = m.kernel_size
+
+    # ops per output element
+    kernel_mul = torch.Tensor(sh * sw * fin,device="cuda:0")
+    kernel_add = torch.Tensor(sh * sw * fin - 1,device="cuda:0")
+    bias_ops = torch.Tensor(1,device="cuda:0") if m.bias is not None else torch.Tensor(0,device="cuda:0")
+    kernel_mul = torch.Tensor(kernel_mul/2,device="cuda:0") # FP16
+    ops = torch.Tensor(kernel_mul + kernel_add + bias_ops,device="cuda:0")
+
+    # total ops
+    num_out_elements = torch.Tensor(y.numel(),device="cuda:0")
+    total_ops = torch.Tensor(num_out_elements * ops,device="cuda:0")
+
+    print("Conv2d: S_c={}, F_in={}, F_out={}, P={}, params={}, operations={}".format(sh,fin,fout,x.size()[2:].numel(),int(m.total_params.item()),int(total_ops)))
+    # incase same conv is used multiple times
+    m.total_ops += torch.Tensor([int(total_ops)],device="cuda:0")
+
+
+def count_bn2d(m, x, y):
+    x = x[0] # remove tuple
+
+    nelements = x.numel()
+    total_sub = 2*nelements
+    total_div = nelements
+    total_ops = torch.Tensor(total_sub + total_div,device="cuda:0")
+
+    m.total_ops += torch.Tensor([int(total_ops)],device="cuda:0")
+    print("Batch norm: F_in={} P={}, params={}, operations={}".format(x.size(1),x.size()[2:].numel(),int(m.total_params.item()),int(total_ops)))
+
+
+def count_relu(m, x, y):
+    x = x[0]
+
+    nelements = x.numel()
+    total_ops = torch.Tensor(nelements,device="cuda:0")
+
+    m.total_ops += torch.Tensor([int(total_ops)],device="cuda:0")
+    print("ReLU: F_in={} P={}, params={}, operations={}".format(x.size(1),x.size()[2:].numel(),0,int(total_ops)))
+
+
+def count_avgpool(m, x, y):
+    x = x[0]
+    total_add = torch.prod(torch.Tensor([m.kernel_size]),device="cuda:0") - 1
+    total_div = 1
+    kernel_ops = total_add + total_div
+    num_elements = y.numel()
+    total_ops = torch.Tensor(kernel_ops * num_elements,device="cuda:0")
+
+    m.total_ops += torch.Tensor([int(total_ops)],device="cuda:0")
+    print("AvgPool: S={}, F_in={}, P={}, params={}, operations={}".format(m.kernel_size,x.size(1),x.size()[2:].numel(),0,int(total_ops)))
+
+
+def count_linear(m, x, y):
+    # per output element
+    total_mul = m.in_features/2
+    total_add = m.in_features - 1
+    num_elements = y.numel()
+    total_ops = torch.Tensor((total_mul + total_add) * num_elements,device="cuda:0")
+    print("Linear: F_in={}, F_out={}, params={}, operations={}".format(m.in_features,m.out_features,int(m.total_params.item()),int(total_ops)))
+    m.total_ops += torch.Tensor([int(total_ops)],devide="cuda:0")
+
+
+def count_sequential(m, x, y):
+    print ("Sequential: No additional parameters  / op")
+
+
+# custom ops could be used to pass variable customized ratios for quantization
+def profile(model, input_size, custom_ops = {}):
+
+    model.eval()
+
+    def add_hooks(m):
+        if len(list(m.children())) > 0: return
+        m.register_buffer('total_ops', torch.zeros(1,device="cuda:0"))
+        m.register_buffer('total_params', torch.zeros(1,device="cuda:0"))
+
+        for p in m.parameters():
+            m.total_params += torch.Tensor([p.numel()] / 2) # Division Free quantification
+
+        if isinstance(m, nn.Conv2d):
+            m.register_forward_hook(count_conv2d)
+        elif isinstance(m, nn.BatchNorm2d):
+            m.register_forward_hook(count_bn2d)
+        elif isinstance(m, nn.ReLU):
+            m.register_forward_hook(count_relu)
+        elif isinstance(m, (nn.AvgPool2d)):
+            m.register_forward_hook(count_avgpool)
+        elif isinstance(m, nn.Linear):
+            m.register_forward_hook(count_linear)
+        elif isinstance(m, nn.Sequential):
+            m.register_forward_hook(count_sequential)
+        else:
+            print("Not implemented for ", m)
+
+    model.apply(add_hooks)
+
+    x = torch.zeros(input_size,device="cuda:0")
+    model(x)
+
+    total_ops = 0
+    total_params = 0
+    for m in model.modules():
+        if len(list(m.children())) > 0: continue
+        total_ops += m.total_ops
+        total_params += m.total_params
+
+    return total_ops, total_params
+
+
+def count_param_and_flops(model,dataset):
+    if dataset == "cifar10":
+        # Resnet18 - Reference for CIFAR 10
+        ref_params = 5586981
+        ref_flops  = 834362880
+    elif dataset == "cifar100":
+        # WideResnet-28-10 - Reference for CIFAR 100
+        ref_params = 36500000
+        ref_flops  = 10490000000
+
+    flops, params = profile(model, (1,3,32,32))
+    flops, params = flops.item(), params.item()
+
+    score_flops = flops / ref_flops
+    score_params = params / ref_params
+    score = score_flops + score_params
+    print("Flops: {}, Params: {}".format(flops,params))
+    print("Score flops: {} Score Params: {}".format(score_flops,score_params))
+    print("Final score: {}".format(score))
+    return flops, params, score_flops,score_params,score
 
 
 ######################################################################################################################################################
@@ -392,17 +532,17 @@ class Orthogo():
                 self.target_modules.append(m)
     def soft_orthogonality_regularization(self,reg_coef):
         regul=0.
-        for m in self.target_modules:
+        for i,m in enumerate(self.target_modules):
             width=np.prod(list(m.weight.data[0].size()))
             height=m.weight.data.size()[0]
             w=m.weight.data.view(width,height)
-            regul+=reg_coef*torch.norm(torch.transpose(w,0,1).matmul(w)-torch.eye(height,device="cuda:0"))**2
+            reg_coef_i=reg_coef
+            regul+=reg_coef_i*torch.norm(torch.transpose(w,0,1).matmul(w)-torch.eye(height,device="cuda:0"))**2
             #reg_grad=4*reg_coef*w*(torch.transpose(w,0,1)*w-torch.eye(height))
         return regul # le terme de régularisation est sur tous les modules! (somme)
-            # on peut même tester avec plusieurs reg_coefs (en fonction des modules)
-            # bien régulariser les 1ères couches est interressant, et moins bien celles d'après. Donc le reg_coef doit être plus grand
-            # plus reg_coef est grand, plus il sera régularisé. On peut faire un regul_coef variable.
-            # On peut tester de diviser reg_coef d'un module à l'autre (voir comme les méthodos du scheduler)
+            # bien régulariser les 1ères couches est interressant, et moins bien celles d'après. Donc le reg_coef doit être plus grand au début
+            # plus reg_coef est grand, plus il sera régularisé. Donc, on diminue le reg_coef module après module
+            # On peut tester de diviser reg_coef d'un module à l'autre (même méthodos que schedulers?)
     def double_soft_orthogonality_regularization(self,reg_coef):
         regul=0
         for m in self.target_modules:
@@ -425,17 +565,97 @@ class Orthogo():
             width=np.prod(list(m.weight.data[0].size()))
             height=m.weight.data.size()[0]
             w=m.weight.data.view(width,height)
-            regul+=reg_coef*(torch.nn.utils.spectral_norm((torch.transpose(w,0,1).matmul(w)-torch.eye(height,device="cuda:0"))))
+            regul+=reg_coef*(torch.nn.utils.spectral_norm(m,"weight"))
         return regul
 
 ######################################################################################################################################################
-###################################################################CountParameters####################################################################
+###################################################################pruning############################################################################
 ######################################################################################################################################################
 
-def count_parameters(model):
-    return sum(p.numel() for p in model.parameters() if p.requires_grad)
-    # p.numel: compte les éléments de p
-    # requires_grad: pour déterminer les paramètres que le modèle peut apprendre (car ce sont ceux qui vont jouer dans la descente de gradient)
+def hook(module, input, output):
+    if hasattr(module,"_input_hook"):
+        module._input_hook=input[0] # input contient plusieurs inputs différents? ça ne fonctionne sans [0] car ça renvoie un tuple...
+        module._output_hook=output
+    else:
+        setattr(module,"_input_hook",input[0])
+        setattr(module,"_output_hook",output)
+
+class Pruning():
+    def __init__(self,model):
+        self.bc_class=model
+        self.model=model.model
+        self.target_modules = []
+        for m in self.model.modules():
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+                self.target_modules.append(m)
+
+    def global_pruning(self,p_to_delete,dim=0):
+        for target_module in self.target_modules:
+            prune.ln_structured(target_module,name="weight",dim=dim,amount=p_to_delete,n=1) # dim est là où on veut supprimer poids (ligne : 1, col : 0?) Sur quelle dim c'est mieux de pruner?
+    
+    def thinet(self,p_to_delete,nb_of_layer_to_prune=10):
+        for m in self.target_modules:
+            if isinstance(m, nn.Conv2d):
+                m.register_forward_hook(hook) # register_forward_hook prend un objet fonction en paramètre
+        torch.cuda.empty_cache()
+        for mod,m in enumerate(self.target_modules[:nb_of_layer_to_prune]): # Dans le papier, il est indiqué que 90% des floating points operattions sont contenus dans les 10 premiers layers
+            print("module:",mod)
+            if isinstance(m, nn.Conv2d):    
+                list_training=[]
+                n=64
+                subset_indices = [random.randint(0,len(trainloader)-1) for _ in range(n)] # récupère au hasard les indices de n batch dans trainloader
+                for i, (inputs, targets) in enumerate(trainloader):
+                    if i in subset_indices:
+                        for j in range(inputs.size()[0]):
+                            size=inputs.size()
+                            self.model(inputs[j].view((1,size[1],size[2],size[3])).half())
+                            channel=random.randint(0,m._output_hook.size()[1]-1)
+                            ligne=random.randint(0,m._output_hook.size()[2]-1)
+                            colonne=random.randint(0,m._output_hook.size()[3]-1)
+                            w=m.weight.data[channel,:,:,:] # W = output_channel * input_channel * ligne * colonne
+                            torch.cuda.empty_cache()
+                            #np.pad pour ajouter des 0 sur un objet de type numpy, mais pas compatible avec tensor!
+                            #x_2=torch.pad(m._input_hook[i][j,:,:,:],((0,0),(1,1),(1,1))) # premier tuple: pour ajouter sur la dim channel, 2ème sur la dim ligne, 3ème sur dim colonne
+                            x_2=torch.zeros((m._input_hook[0].size()[0],m._input_hook[0].size()[1]+2,m._input_hook[0].size()[2]+2),device="cuda:0")
+                            torch.cuda.empty_cache()
+                            x_2[:,1:-1,1:-1] = m._input_hook[0] # On remplace une matrice avec que des 0 avec nos valeurs de x à l'intérieur (padding autour)
+                            torch.cuda.empty_cache()
+                            x=x_2[:,ligne:ligne+w.size()[1],colonne:colonne+w.size()[2]] # On ne prend pas -1 car le décalage est déjà là de base
+                            torch.cuda.empty_cache()
+                            list_training.append(x*w)
+                            torch.cuda.empty_cache()
+                channels_to_delete=[]
+                channels_to_try_to_delete=[]
+                total_channels=[i for i in range(m._input_hook.size()[1])]
+                torch.cuda.empty_cache()
+                c=len(total_channels)
+                torch.cuda.empty_cache()
+                while len(channels_to_delete)<c*p_to_delete:
+                    torch.cuda.empty_cache()
+                    min_value=np.inf
+                    for channel in total_channels:
+                        channels_to_try_to_delete=channels_to_delete+[channel]
+                        torch.cuda.empty_cache()
+                        value=0
+                        for a in list_training:
+                            a_changed=a[channels_to_try_to_delete,:,:]
+                            torch.cuda.empty_cache()
+                            result=torch.sum(a_changed)
+                            torch.cuda.empty_cache()
+                            value+=result**2
+                            torch.cuda.empty_cache()
+                        if value<min_value:
+                            min_value=value
+                            min_channel=channel
+                    channels_to_delete.append(min_channel)
+                    torch.cuda.empty_cache()
+                    total_channels.remove(min_channel)
+                    torch.cuda.empty_cache()
+                m.weight.data[:,channels_to_delete,:,:]=torch.zeros(m.weight.data[:,channels_to_delete,:,:].size(),device="cuda:0").half()
+                #Pour simplifier, on ne supprime pas vraiment les poids à enlever mais on les met à 0, car si on devait les supprimer, il faudrait supprimer les channels en input aussi, et faire une sorte de "backpropagation", ce qui est trop compliqué et je n'ai pas le temps
+                #m.weight.data=m.weight.data[:,total_channels,:,:] # Car total_channels ne contient que les poids que l'on garde
+                #m._input_hook[i]=m._input_hook[i][total_channels,:,:]
+
 
 ######################################################################################################################################################
 ###################################################################Application_model##################################################################
@@ -525,9 +745,10 @@ def train_model(model,device,loss_function,n_epochs,trainloader,validloader,sche
 
 
 reg_coefs=[0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9]
-functions=["simple","double","mutual_coherence","spectral_isometry"]
+functions=["simple","spectral_isometry"]
+pruning_rate=[0.1,0.2,0.3,0.4,0.5,0.6]
 
-def models_variant_archi_param(trainloader,validloader,n_epochs=200,learning_rate=0.001,momentum=0.95,weight_decay=5e-5,method_gradient_descent="SGD",method_scheduler="CosineAnnealingLR",loss_function=nn.CrossEntropyLoss(),dataset="minicifar"):
+def models_variant_archi_param(trainloader,validloader,n_epochs=2,learning_rate=0.001,momentum=0.95,weight_decay=5e-5,method_gradient_descent="SGD",method_scheduler="CosineAnnealingLR",loss_function=nn.CrossEntropyLoss(),dataset="minicifar"):
     for model_name,model_nb_blocks in zip(nums_blocks.keys(),nums_blocks.values()):
         for div_param in range(1,9):
             model=ResNet(Bottleneck,model_nb_blocks,div=div_param,num_classes=int(dataset[dataset.find("1"):]))
@@ -543,17 +764,25 @@ def models_variant_archi_param(trainloader,validloader,n_epochs=200,learning_rat
                     model_or=model
                     model_orthogo=Orthogo(model_or)
                     results=train_model(model,device,loss_function,n_epochs,trainloader,validloader,scheduler,optimizer,model_orthogo,function,reg_coef)
-                    nb_para=count_parameters(model)
-                    file_name=f"{model_name}_div_param_of_{div_param}_nb_param_of_{nb_para}_reg_function_of_{function}_reg_coef_of_{reg_coef}_{learning_rate}_{momentum}_{weight_decay}_{method_gradient_descent}_{method_scheduler}.csv"
+                    flops,nb_para,flops_score,para_score,score=count_param_and_flops(model,dataset)
+                    file_name=f"{model_name}_div_param_of_{div_param}_nb_param_of_{nb_para}_nb_flops_{flops}_scoreflops_{flops_score}_scorepara_{para_score}_score_{score}_function_of_{function}_reg_coef_of_{reg_coef}_{learning_rate}_{momentum}_{weight_decay}_{method_gradient_descent}_{method_scheduler}.csv"
                     results.to_csv(f"./{dataset}/model_{function}_reg_dif_para/"+file_name)
+                    for rate in pruning_rate:
+                        model_pruning=Pruning(model)
+                        model_pruning.thinet(rate)
+                        flops,nb_para,flops_score,para_score,score=count_param_and_flops(model_pruning,dataset)
+                        file_name=f"{model_name}_div_param_of_{div_param}_nb_param_of_{nb_para}_nb_flops_{flops}_scoreflops_{flops_score}_scorepara_{para_score}_score_{score}_function_of_{function}_reg_coef_of_{reg_coef}_{learning_rate}_{momentum}_{weight_decay}_{method_gradient_descent}_{method_scheduler}.csv"
+                        results_pruning={"accuracy":[],"rate":[]}
+                        results_pruning["accuracy"].append(validation(n_epochs,model_pruning,device,validloader))
+                        results_pruning_retrained.to_csv(f"./{dataset}/model_{function}_reg_dif_para/ThiNet_pruning_rate_{rate}_"+file_name)
+                        results_pruning_retrained=train_model(model_pruning,device,loss_function,n_epochs,trainloader,validloader,scheduler,optimizer,model,None,None,None)
+                        results_pruning_retrained.to_csv(f"./{dataset}/model_{function}_reg_dif_para/ThiNet_pruning_retrain_rate_{rate}_"+file_name)
 
 for dataset in ["cifar10","cifar100"]:
-
     if dataset == "cifar10":
         trainloader=train_cifar10
         testloader=test_cifar10
     elif dataset == "cifar100":
         trainloader=train_cifar100
         testloader=test_cifar100
-
     models_variant_archi_param(trainloader=trainloader,validloader=testloader,dataset=dataset)
