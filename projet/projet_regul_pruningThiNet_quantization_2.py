@@ -302,7 +302,7 @@ def ResNeXt29_32x4d():
 def function_separation_on_tensor(nb_bits,tensor,device):
     array_0=np.linspace(start=-1,stop=1,num=2**nb_bits)
     full_array=np.stack([array_0]*np.prod(tensor.size())).reshape(tensor.size()+(array_0.shape)) # np.stack a une shape de taille a*b*c,4 (si tensor a une taille a*b*c). Nous on veut en sortie a,b,c,4 donc on reshape
-    tensor_0=torch.tensor(full_array,device)
+    tensor_0=torch.tensor(full_array,device=device)
     x=torch.unsqueeze(tensor,dim=-1) # on transforme tensor en a,b,c,1
     # print(((tensor_0-x)**2).size())
     # print((torch.argmin((tensor_0-x)**2,dim=-1)))
@@ -569,7 +569,7 @@ def train(epoch,model,optimizer,device,trainloader,loss_function,model_orthogo,f
 
 
 
-def train_quantization(epoch,bc_model,optimizer,device,trainloader,loss_function,model_orthogo,function,reg_coef):
+def train_quantization(epoch,bc_model,optimizer,device,trainloader,loss_function):
     print('\nEpoch: %d' % epoch)
     bc_model.model.train()
     train_loss = 0
@@ -748,7 +748,7 @@ def models_variant_archi_param(trainloader,validloader,n_epochs=1,learning_rate=
                         results_half_precision["accuracy"].append(validation_half(n_epochs,model_pruned_half,device,validloader))
                         results_half_precision_df=pd.DataFrame.from_dict(results_half_precision)
                         torch.save(model_pruned_half.state_dict(),f"./{dataset}/model_{function}_reg_dif_para/models/"+f"half_{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_ThiNet_pruning_retrain_rate_{rate}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.pt")
-                        results_half_precision.to_csv(f"./{dataset}/model_{function}_reg_dif_para/results/"+f"half_{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_ThiNet_pruning_retrain_rate_{rate}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.csv")
+                        results_half_precision_df.to_csv(f"./{dataset}/model_{function}_reg_dif_para/results/"+f"half_{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_ThiNet_pruning_retrain_rate_{rate}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.csv")
                         for nb_bits in nb_bits_list:
                             bc_model=BC(model_pruning.model,nb_bits,device)
                             results_bc_model=train_model_quantization(bc_model,device,loss_function,n_epochs,trainloader,validloader,scheduler,optimizer)
