@@ -304,18 +304,6 @@ def ResNeXt29_32x4d():
 
 
 
-
-######################################################################################################################################################
-##################################################Class_qui_hérite_dataparallele_et_resnet############################################################
-######################################################################################################################################################
-
-class heritage_resnet_dataparallel(ResNet, nn.DataParallel):
-    def __init__(self):
-        ResNet.__init__(self)
-        nn.DataParallel.__init__(self)
-
-
-
 ######################################################################################################################################################
 ###################################################################BinaryConnect######################################################################
 ######################################################################################################################################################
@@ -488,15 +476,11 @@ class Pruning():
         self.target_modules = []
         for m in self.model.modules():
             if isinstance(m,Bottleneck):
-                print(m)
-                layer_added=False
-                if isinstance(m,nn.Conv2d):
-                    print(m)
-                    layer_added=True
-                    self.target_modules.append(m)
-            if layer_added:
-                self.target_modules=self.target_modules[:-1] # on prend toutes les conv2d sauf la dernière
-
+                convs=[]
+                for m_2 in m.modules():
+                    if isinstance(m_2,nn.Conv2d):
+                        convs.append(m_2)
+                self.target_modules.extend(convs[:-1]) # on prend toutes les conv2d de chaque block sauf la dernière
     def thinet(self,p_to_delete,nb_of_layer_to_prune=2):
         for m in self.target_modules:
             if isinstance(m, nn.Conv2d):
@@ -509,6 +493,7 @@ class Pruning():
                 n=64
                 subset_indices = [random.randint(0,len(trainloader)-1) for _ in range(n)] # récupère au hasard les indices de n batch dans trainloader
                 for i, (inputs, targets) in enumerate(trainloader):
+                    inputs, targets = inputs.to(self.device), targets.to(self.device)
                     if i in subset_indices:
                         for j in range(inputs.size()[0]):
                             size=inputs.size()
@@ -736,14 +721,13 @@ functions=["simple","spectral_isometry"]
 pruning_rate=[0.2,0.3,0.4,0.5,0.6]
 nb_bits_list=[i for i in range(2,10)]
 
-def models_variant_archi_param(trainloader,validloader,n_epochs=1,learning_rate=0.001,momentum=0.95,weight_decay=5e-5,method_gradient_descent="SGD",method_scheduler="CosineAnnealingLR",loss_function=nn.CrossEntropyLoss(),dataset="minicifar"):
+def models_variant_archi_param(trainloader,validloader,n_epochs=200,learning_rate=0.001,momentum=0.95,weight_decay=5e-5,method_gradient_descent="SGD",method_scheduler="CosineAnnealingLR",loss_function=nn.CrossEntropyLoss(),dataset="minicifar"):
     for model_name,model_nb_blocks in zip(nums_blocks.keys(),nums_blocks.values()):
         for div_param in range(1,9):
             model=ResNet(Bottleneck,model_nb_blocks,div=div_param,num_classes=int(dataset[dataset.find("1"):]))
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
-            if device == 'cuda':
-                model = torch.nn.DataParallel(model)
-                cudnn.benchmark = True
+            cudnn.benchmark = True
+            model.to(torch.device("cuda:0"))
             optimizer = optim.SGD(model.parameters(), lr=learning_rate,
                                             momentum=momentum, weight_decay=weight_decay)
             scheduler=get_schedulers(optimizer,n_epochs)[method_scheduler]
@@ -778,7 +762,6 @@ def models_variant_archi_param(trainloader,validloader,n_epochs=1,learning_rate=
                             results_bc_model.to_csv(f"./{dataset}/model_{function}_reg_dif_para/results/"+f"half_quantized_with_BinaryConnect_precisionof_{nb_bits}bits_{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_ThiNet_pruning_retrain_rate_{rate}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.csv")
 # Est-ce que j'ai besoin, à chaque fois que je modifie le modèle, de réinitialiser l'optimizer & le scheduler?
 
-#models_variant_archi_param(trainloader=trainloader,validloader=validloader,dataset="minicifar")
 
 for dataset in ["cifar10","cifar100"]:
     if dataset == "cifar10":
