@@ -20,10 +20,6 @@ import torch.nn.utils
 import random
 import torch.nn.utils.prune as prune
 
-from minicifar import minicifar_train,minicifar_test,train_sampler,valid_sampler
-
-trainloader= DataLoader(minicifar_train,batch_size=32,sampler=train_sampler)
-validloader= DataLoader(minicifar_train,batch_size=32,sampler=valid_sampler)
 
 normalize_scratch = transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
 
@@ -480,7 +476,7 @@ class Pruning():
                         convs.append(m_2)
                 self.target_modules.extend(convs[:-1]) # on prend toutes les conv2d de chaque block sauf la dernière
         print(self.target_modules)
-    def thinet(self,p_to_delete):
+    def thinet(self,trainloader,p_to_delete):
         for m in self.target_modules:
             if isinstance(m, nn.Conv2d):
                 m.register_forward_hook(hook) # register_forward_hook prend un objet fonction en paramètre
@@ -491,10 +487,11 @@ class Pruning():
                 n=64
                 subset_indices = [random.randint(0,len(trainloader)-1) for _ in range(n)] # récupère au hasard les indices de n batch dans trainloader
                 for i, (inputs, targets) in enumerate(trainloader):
-                    inputs, targets = inputs.to(self.device), targets.to(self.device)
+                    inputs, targets = inputs.to("cpu"), targets.to("cpu")
                     if i in subset_indices:
                         for j in range(inputs.size()[0]):
                             size=inputs.size()
+                            self.model.to("cpu")
                             self.model(inputs[j].view((1,size[1],size[2],size[3])))
                             channel=random.randint(0,m._output_hook.size()[1]-1)
                             ligne=random.randint(0,m._output_hook.size()[2]-1)
@@ -502,39 +499,30 @@ class Pruning():
                             w=m.weight.data[channel,:,:,:] # W = output_channel * input_channel * ligne * colonne
                             #np.pad pour ajouter des 0 sur un objet de type numpy, mais pas compatible avec tensor!
                             #x_2=torch.pad(m._input_hook[i][j,:,:,:],((0,0),(1,1),(1,1))) # premier tuple: pour ajouter sur la dim channel, 2ème sur la dim ligne, 3ème sur dim colonne
-                            x_2=torch.zeros((m._input_hook[0].size()[0],m._input_hook[0].size()[1]+2,m._input_hook[0].size()[2]+2),device=self.device)
+                            x_2=torch.zeros((m._input_hook[0].size()[0],m._input_hook[0].size()[1]+2,m._input_hook[0].size()[2]+2))
                             x_2[:,1:-1,1:-1] = m._input_hook[0] # On remplace une matrice avec que des 0 avec nos valeurs de x à l'intérieur (padding autour)
                             x=x_2[:,ligne:ligne+w.size()[1],colonne:colonne+w.size()[2]] # On ne prend pas -1 car le décalage est déjà là de base
-                            list_training.append(x*w)
-                            
+                            list_training.append(x*w)     
                 channels_to_delete=[]
                 channels_to_try_to_delete=[]
                 total_channels=[i for i in range(m._input_hook.size()[1])]
-                
                 c=len(total_channels)
-                
                 while len(channels_to_delete)<c*p_to_delete:
-                    
                     min_value=np.inf
                     for channel in total_channels:
                         channels_to_try_to_delete=channels_to_delete+[channel]
-                        
                         value=0
                         for a in list_training:
                             a_changed=a[channels_to_try_to_delete,:,:]
-                            
                             result=torch.sum(a_changed)
-                            
                             value+=result**2
-                            
                         if value<min_value:
                             min_value=value
                             min_channel=channel
                     channels_to_delete.append(min_channel)
-                    
                     total_channels.remove(min_channel)
-                    
-                m.weight.data[:,channels_to_delete,:,:]=torch.zeros(m.weight.data[:,channels_to_delete,:,:].size(),device=self.device)
+                m.weight.data[:,channels_to_delete,:,:]=torch.zeros(m.weight.data[:,channels_to_delete,:,:].size())
+        self.model.to(device)
                 #Pour simplifier, on ne supprime pas vraiment les poids à enlever mais on les met à 0, car si on devait les supprimer, il faudrait supprimer les channels en input aussi, et faire une sorte de "backpropagation", ce qui est trop compliqué et je n'ai pas le temps
                 #m.weight.data=m.weight.data[:,total_channels,:,:] # Car total_channels ne contient que les poids que l'on garde
                 #m._input_hook[i]=m._input_hook[i][total_channels,:,:]
@@ -719,15 +707,16 @@ functions=["simple","spectral_isometry"]
 pruning_rate=[0.2,0.3,0.4,0.5,0.6]
 nb_bits_list=[i for i in range(2,10)]
 
-def models_variant_archi_param(trainloader,validloader,n_epochs=150,learning_rate=0.001,momentum=0.95,weight_decay=5e-5,method_gradient_descent="SGD",method_scheduler="CosineAnnealingLR",loss_function=nn.CrossEntropyLoss(),dataset="minicifar"):
+def models_variant_archi_param(trainloader,validloader,dataset,n_epochs=1,learning_rate=0.001,momentum=0.95,weight_decay=5e-5,method_gradient_descent="SGD",method_scheduler="CosineAnnealingLR",loss_function=nn.CrossEntropyLoss()):
     for model_name,model_nb_blocks in zip(nums_blocks.keys(),nums_blocks.values()):
         for div_param in range(1,9):
             model=ResNet(Bottleneck,model_nb_blocks,div=div_param,num_classes=int(dataset[dataset.find("1"):]))
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
-            if device == 'cuda':
-                model = torch.nn.DataParallel(model)
-                cudnn.benchmark = True
-            #model.to(torch.device("cuda:0"))
+            # if device == 'cuda':
+            #     model = torch.nn.DataParallel(model)
+            #     cudnn.benchmark = True
+            cudnn.benchmark = True
+            model.to(torch.device("cuda:0"))
             optimizer = optim.SGD(model.parameters(), lr=learning_rate,
                                             momentum=momentum, weight_decay=weight_decay)
             scheduler=get_schedulers(optimizer,n_epochs)[method_scheduler]
@@ -738,7 +727,7 @@ def models_variant_archi_param(trainloader,validloader,n_epochs=150,learning_rat
                     file_name=f"{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.csv"
                     for rate in pruning_rate:
                         model_pruning=Pruning(model,device)
-                        model_pruning.thinet(rate)
+                        model_pruning.thinet(trainloader,rate)
                         file_name=f"{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.csv"
                         results_pruning={"accuracy":[]}
                         results_pruning["accuracy"].append(validation(n_epochs,model_pruning.model,device,validloader))
