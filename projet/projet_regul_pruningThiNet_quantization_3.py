@@ -183,7 +183,6 @@ class Bottleneck(nn.Module):
 class ResNet(nn.Module):
     def __init__(self, block, num_blocks, div=1, num_classes=10):
         super(ResNet, self).__init__()
-        self.blocks=[]
         self.in_planes = 64//div
 
         self.conv1 = nn.Conv2d(3, 64//div, kernel_size=3,
@@ -201,7 +200,6 @@ class ResNet(nn.Module):
         for stride in strides:
             b=block(self.in_planes, planes, stride)
             layers.append(b)
-            self.blocks.append(b)
             self.in_planes = planes * block.expansion
         return nn.Sequential(*layers)
 
@@ -481,12 +479,12 @@ class Pruning():
                     if isinstance(m_2,nn.Conv2d):
                         convs.append(m_2)
                 self.target_modules.extend(convs[:-1]) # on prend toutes les conv2d de chaque block sauf la dernière
-    def thinet(self,p_to_delete,nb_of_layer_to_prune=2):
+        print(self.target_modules)
+    def thinet(self,p_to_delete):
         for m in self.target_modules:
             if isinstance(m, nn.Conv2d):
                 m.register_forward_hook(hook) # register_forward_hook prend un objet fonction en paramètre
-        
-        for mod,m in enumerate(self.target_modules[:nb_of_layer_to_prune]): # Dans le papier, il est indiqué que 90% des floating points operattions sont contenus dans les 10 premiers layers
+        for mod,m in enumerate(self.target_modules): # Dans le papier, il est indiqué que 90% des floating points operattions sont contenus dans les 10 premiers layers
             print("module:",mod)
             if isinstance(m, nn.Conv2d):    
                 list_training=[]
@@ -721,13 +719,15 @@ functions=["simple","spectral_isometry"]
 pruning_rate=[0.2,0.3,0.4,0.5,0.6]
 nb_bits_list=[i for i in range(2,10)]
 
-def models_variant_archi_param(trainloader,validloader,n_epochs=200,learning_rate=0.001,momentum=0.95,weight_decay=5e-5,method_gradient_descent="SGD",method_scheduler="CosineAnnealingLR",loss_function=nn.CrossEntropyLoss(),dataset="minicifar"):
+def models_variant_archi_param(trainloader,validloader,n_epochs=150,learning_rate=0.001,momentum=0.95,weight_decay=5e-5,method_gradient_descent="SGD",method_scheduler="CosineAnnealingLR",loss_function=nn.CrossEntropyLoss(),dataset="minicifar"):
     for model_name,model_nb_blocks in zip(nums_blocks.keys(),nums_blocks.values()):
         for div_param in range(1,9):
             model=ResNet(Bottleneck,model_nb_blocks,div=div_param,num_classes=int(dataset[dataset.find("1"):]))
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
-            cudnn.benchmark = True
-            model.to(torch.device("cuda:0"))
+            if device == 'cuda':
+                model = torch.nn.DataParallel(model)
+                cudnn.benchmark = True
+            #model.to(torch.device("cuda:0"))
             optimizer = optim.SGD(model.parameters(), lr=learning_rate,
                                             momentum=momentum, weight_decay=weight_decay)
             scheduler=get_schedulers(optimizer,n_epochs)[method_scheduler]
