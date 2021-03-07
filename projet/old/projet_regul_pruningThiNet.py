@@ -38,7 +38,7 @@ transform_test = transforms.Compose([
 ]) # On ne fait pas le flip et le crop pour le test
 
 
-### The data from CIFAR100 will be downloaded in the following dataset
+# The data from CIFAR100 will be downloaded in the following dataset
 rootdir_cifar100 = './data/cifar100'
 
 c100train = CIFAR100(rootdir_cifar100,train=True,download=True,transform=transform_train)
@@ -47,7 +47,7 @@ c100test = CIFAR100(rootdir_cifar100,train=False,download=True,transform=transfo
 train_cifar100=DataLoader(c100train,batch_size=32)
 test_cifar100=DataLoader(c100test,batch_size=32)
 
-### The data from CIFAR10 will be downloaded in the following dataset
+# The data from CIFAR10 will be downloaded in the following dataset
 rootdir_cifar10 = './data/cifar10'
 
 c10train = CIFAR10(rootdir_cifar10,train=True,download=True,transform=transform_train)
@@ -59,9 +59,9 @@ test_cifar10=DataLoader(c10test,batch_size=32)
 
 
 
-######################################################################################################################################################
-###################################################################VGG################################################################################
-######################################################################################################################################################
+         ###########
+#######################VGG############################
+##################################################
 
 cfg = {
     'VGG11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
@@ -113,9 +113,9 @@ class VGG(nn.Module):
 
 
 
-######################################################################################################################################################
-###################################################################ResNet#############################################################################
-######################################################################################################################################################
+##################################################
+#######################ResNet###########################
+##################################################
 
 class BasicBlock(nn.Module):
     expansion = 1
@@ -211,9 +211,9 @@ class ResNet(nn.Module):
 
 nums_blocks={"ResNet18":[2, 2, 2, 2],"ResNet34":[3, 4, 6, 3],"ResNet50":[3, 4, 6, 3],"ResNet101":[3, 4, 23, 3],"ResNet152":[3, 8, 36, 3]}
 
-######################################################################################################################################################
-###################################################################ResNext############################################################################
-######################################################################################################################################################
+##################################################
+#######################ResNext##########################
+##################################################
 
 class Block(nn.Module):
     '''Grouped convolution block.'''
@@ -294,9 +294,9 @@ def ResNeXt29_8x64d():
 def ResNeXt29_32x4d():
     return ResNeXt(num_blocks=[3,3,3], cardinality=32, bottleneck_width=4)
 
-######################################################################################################################################################
-###################################################################CountPara&FLOPS####################################################################
-######################################################################################################################################################
+##################################################
+#######################CountPara&FLOPS########################
+##################################################
 
 def count_conv2d(m, x, y):
     x = x[0] # remove tuple
@@ -434,9 +434,9 @@ def count_param_and_flops(model,dataset):
     return flops, params, score_flops,score_params,score
 
 
-######################################################################################################################################################
-###################################################################BinaryConnect######################################################################
-######################################################################################################################################################
+##################################################
+#######################BinaryConnect########################
+##################################################
 
 class BC():
     def __init__(self, model):
@@ -466,7 +466,7 @@ class BC():
 
         self.model = model.half() # this contains the model that will be trained and quantified
 
-        ### This builds the initial copy of all parameters and target modules
+        # This builds the initial copy of all parameters and target modules
         index = -1
         for m in model.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
@@ -479,24 +479,24 @@ class BC():
 
     def save_params(self):
 
-        ### This loop goes through the list of target modules, and saves the corresponding weights into the list of saved_parameters
+        # This loop goes through the list of target modules, and saves the corresponding weights into the list of saved_parameters
         for index in range(self.num_of_params):
             self.saved_params[index].copy_(self.target_modules[index].data)
 
     def binarization(self):
 
-        ### To be completed
+        # To be completed
 
-        ### (1) Save the current full precision parameters using the save_params method
+        # (1) Save the current full precision parameters using the save_params method
         self.save_params()
-        ### (2) Binarize the weights in the model, by iterating through the list of target modules and overwrite the values with their binary version 
+        # (2) Binarize the weights in the model, by iterating through the list of target modules and overwrite the values with their binary version 
         for index in range(self.num_of_params):
             self.target_modules[index].data.copy_(torch.sign(self.target_modules[index].data))
             #self.target_modules[index].cpu().detach().apply_(lambda x : -1 if x<0 else 1).cuda() # on ne peut pas appliquer la fonction apply_ avec gpu (uniquement sur cpu)
 
     def restore(self):
 
-        ### restore the copy from self.saved_params into the model 
+        # restore the copy from self.saved_params into the model 
         for index in range(self.num_of_params):
             self.target_modules[index].data.copy_(self.saved_params[index])
 
@@ -512,7 +512,7 @@ class BC():
 
     def forward(self,x):
 
-        ### This function is used so that the model can be used while training
+        # This function is used so that the model can be used while training
         out = self.model(x.half())
 
         return out
@@ -520,9 +520,9 @@ class BC():
 
 
 
-######################################################################################################################################################
-###################################################################Regularisation#####################################################################
-######################################################################################################################################################
+##################################################
+#######################Regularisation#######################
+##################################################
 class Orthogo():
     def __init__(self,model):
         self.model=model
@@ -568,9 +568,9 @@ class Orthogo():
             regul+=reg_coef*(torch.nn.utils.spectral_norm(m,"weight"))
         return regul
 
-######################################################################################################################################################
-###################################################################pruning############################################################################
-######################################################################################################################################################
+##################################################
+#######################pruning##########################
+##################################################
 
 def hook(module, input, output):
     if hasattr(module,"_input_hook"):
@@ -657,9 +657,9 @@ class Pruning():
                 #m._input_hook[i]=m._input_hook[i][total_channels,:,:]
 
 
-######################################################################################################################################################
-###################################################################Application_model##################################################################
-######################################################################################################################################################
+##################################################
+#######################Application_model######################
+##################################################
 
 def train(epoch,model,optimizer,device,trainloader,loss_function,model_orthogo,function,reg_coef):
     print('\nEpoch: %d' % epoch)
