@@ -7,6 +7,7 @@ lab1/data
 lab2/data
 lab3/data
 projet/data
+projet/__pycache__/
 data/cifar10
 data/cifar100
 data
