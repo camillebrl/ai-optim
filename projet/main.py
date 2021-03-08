@@ -16,9 +16,9 @@ reg_coefs = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 functions = ["simple", "spectral_isometry"]
 pruning_rate = [0.2, 0.3, 0.4, 0.5, 0.6]
 nb_bits_list = [i for i in range(2, 10)]
+thinets = ["thinet_normal","thinet_batch"]
 
-
-def models_variant_archi_param(trainloader, validloader, dataset, n_epochs=1,
+def models_variant_archi_param(trainloader, validloader, dataset, n_epochs=150,
                                learning_rate=0.001, momentum=0.95,
                                weight_decay=5e-5, method_gradient_descent="SGD",
                                method_scheduler="CosineAnnealingLR",
@@ -48,47 +48,51 @@ def models_variant_archi_param(trainloader, validloader, dataset, n_epochs=1,
                     file_name = f"{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.csv"
                     for rate in pruning_rate:
                         model_pruning = Pruning(model, device)
-                        model_pruning.thinet(trainloader, rate)
-                        file_name = f"{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.csv"
-                        results_pruning = {"accuracy": []}
-                        results_pruning["accuracy"].append(
-                            validation(n_epochs, model_pruning.model, device,
-                                       validloader))
-                        results_pruning_df = pd.DataFrame.from_dict(
-                            results_pruning)
-                        torch.save(model_pruning.model.state_dict(),
-                                   f"./{dataset}/model_{function}_reg_dif_para/models/" + f"{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_ThiNet_pruning_rate_{rate}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.pt")
-                        results_pruning_df.to_csv(
-                            f"./{dataset}/model_{function}_reg_dif_para/results/" + f"{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_ThiNet_pruning_rate_{rate}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.csv")
-                        results_pruning_retrained = train_model(
-                            model_pruning.model, device, loss_function,
-                            n_epochs, trainloader, validloader, scheduler,
-                            optimizer, None, None, None)
-                        torch.save(model_pruning.model.state_dict(),
-                                   f"./{dataset}/model_{function}_reg_dif_para/models/" + f"{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_ThiNet_pruning_retrain_rate_{rate}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.pt")
-                        results_pruning_retrained.to_csv(
-                            f"./{dataset}/model_{function}_reg_dif_para/results/" + f"{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_ThiNet_pruning_retrain_rate_{rate}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.csv")
-                        model_pruned_half = model_pruning.model
-                        model_pruned_half.half()
-                        results_half_precision = {"accuracy": []}
-                        results_half_precision["accuracy"].append(
-                            validation_half(n_epochs, model_pruned_half, device,
-                                            validloader))
-                        results_half_precision_df = pd.DataFrame.from_dict(
-                            results_half_precision)
-                        torch.save(model_pruned_half.state_dict(),
-                                   f"./{dataset}/model_{function}_reg_dif_para/models/" + f"half_{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_ThiNet_pruning_retrain_rate_{rate}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.pt")
-                        results_half_precision_df.to_csv(
-                            f"./{dataset}/model_{function}_reg_dif_para/results/" + f"half_{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_ThiNet_pruning_retrain_rate_{rate}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.csv")
-                        for nb_bits in nb_bits_list:
-                            bc_model = BC(model_pruning.model, nb_bits, device)
-                            results_bc_model = train_model_quantization(
-                                bc_model, device, loss_function, n_epochs,
-                                trainloader, validloader, scheduler, optimizer)
-                            torch.save(bc_model.model.state_dict(),
-                                       f"./{dataset}/model_{function}_reg_dif_para/models/" + f"half_quantized_with_BinaryConnect_precisionof_{nb_bits}bits_{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_ThiNet_pruning_retrain_rate_{rate}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.pt")
-                            results_bc_model.to_csv(
-                                f"./{dataset}/model_{function}_reg_dif_para/results/" + f"half_quantized_with_BinaryConnect_precisionof_{nb_bits}bits_{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_ThiNet_pruning_retrain_rate_{rate}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.csv")
+                        for thinet in thinets:
+                            if thinet == "thinet_normal":
+                                model_pruning.thinet(trainloader, rate)
+                            elif thinet == "thinet_batch":
+                                model_pruning.thinet_batch(trainloader, rate)
+                            file_name = f"{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.csv"
+                            results_pruning = {"accuracy": []}
+                            results_pruning["accuracy"].append(
+                                validation(n_epochs, model_pruning.model, device,
+                                        validloader))
+                            results_pruning_df = pd.DataFrame.from_dict(
+                                results_pruning)
+                            torch.save(model_pruning.model.state_dict(),
+                                    f"./{dataset}/model_{function}_reg_dif_para/models/" + f"{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_ThiNet_pruning_rate_{rate}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.pt")
+                            results_pruning_df.to_csv(
+                                f"./{dataset}/model_{function}_reg_dif_para/results/" + f"{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_ThiNet_pruning_rate_{rate}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.csv")
+                            results_pruning_retrained = train_model(
+                                model_pruning.model, device, loss_function,
+                                n_epochs, trainloader, validloader, scheduler,
+                                optimizer, None, None, None)
+                            torch.save(model_pruning.model.state_dict(),
+                                    f"./{dataset}/model_{function}_reg_dif_para/models/" + f"{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_ThiNet_pruning_retrain_rate_{rate}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.pt")
+                            results_pruning_retrained.to_csv(
+                                f"./{dataset}/model_{function}_reg_dif_para/results/" + f"{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_ThiNet_pruning_retrain_rate_{rate}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.csv")
+                            model_pruned_half = model_pruning.model
+                            model_pruned_half.half()
+                            results_half_precision = {"accuracy": []}
+                            results_half_precision["accuracy"].append(
+                                validation_half(n_epochs, model_pruned_half, device,
+                                                validloader))
+                            results_half_precision_df = pd.DataFrame.from_dict(
+                                results_half_precision)
+                            torch.save(model_pruned_half.state_dict(),
+                                    f"./{dataset}/model_{function}_reg_dif_para/models/" + f"half_{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_ThiNet_pruning_retrain_rate_{rate}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.pt")
+                            results_half_precision_df.to_csv(
+                                f"./{dataset}/model_{function}_reg_dif_para/results/" + f"half_{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_ThiNet_pruning_retrain_rate_{rate}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.csv")
+                            for nb_bits in nb_bits_list:
+                                bc_model = BC(model_pruning.model, nb_bits, device)
+                                results_bc_model = train_model_quantization(
+                                    bc_model, device, loss_function, n_epochs,
+                                    trainloader, validloader, scheduler, optimizer)
+                                torch.save(bc_model.model.state_dict(),
+                                        f"./{dataset}/model_{function}_reg_dif_para/models/" + f"half_quantized_with_BinaryConnect_precisionof_{nb_bits}bits_{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_ThiNet_pruning_retrain_rate_{rate}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.pt")
+                                results_bc_model.to_csv(
+                                    f"./{dataset}/model_{function}_reg_dif_para/results/" + f"half_quantized_with_BinaryConnect_precisionof_{nb_bits}bits_{model_name}_divParamOf_{div_param}_functionOf_{function}_regCoefOf_{reg_coef}_ThiNet_pruning_retrain_rate_{rate}_learningRateOf_{learning_rate}_momentumOf_{momentum}_weightDecayOf_{weight_decay}_gradDescentMethodOf_{method_gradient_descent}_schedMethodOf_{method_scheduler}.csv")
 
 
 # Est-ce que j'ai besoin, à chaque fois que je modifie le modèle,
