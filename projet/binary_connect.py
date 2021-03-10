@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
+import time
 
 
 def function_separation_on_tensor(nb_bits, tensor, device):
@@ -85,9 +86,9 @@ class BC():
                 function_separation_on_tensor(self.nb_bits,
                                               self.target_modules[index].data,
                                               self.device))
-            # on ne peut pas appliquer la fonction apply_ avec gpu (uniquement sur cpu)
-            # self.target_modules[index].cpu().detach().apply_(
-            #     lambda x: -1 if x < 0 else 1).cuda()
+        # on ne peut pas appliquer la fonction apply_ avec gpu (uniquement sur cpu)
+        # self.target_modules[index].cpu().detach().apply_(
+        #     lambda x: -1 if x < 0 else 1).cuda()
 
     def restore(self):
 

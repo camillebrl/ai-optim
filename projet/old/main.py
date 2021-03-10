@@ -1,4 +1,5 @@
 import os
+import logging
 
 from architecture_ResNet import nums_blocks, Bottleneck, ResNet
 import torch
