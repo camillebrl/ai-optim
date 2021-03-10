@@ -11,3 +11,5 @@ projet/__pycache__/
 data/cifar10
 data/cifar100
 data
+projet/cifar10
+projet/cifar100

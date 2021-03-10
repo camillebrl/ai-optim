@@ -83,6 +83,7 @@ def models_variant_archi_param(trainloader, validloader, dataset, n_epochs=150,
                             }
                             results_pruning_df = pd.DataFrame.from_dict(results_pruning)
                             torch.save(model_pruning.model.state_dict(),
+
                                        os.path.join(model_dir, fname_pruning_model))
                             results_pruning_df.to_csv(
                                 os.path.join(results_dir, fname_pruning_results))
@@ -96,7 +97,6 @@ def models_variant_archi_param(trainloader, validloader, dataset, n_epochs=150,
                             print("Saving results in :", fname_pruning_retrain_results)
 
                             # TODO : IMPORTANT : USE THE VALIDATION RESULTS, THIS IS INCORRECT
-
                             results_pruning_retrained = train_model(
                                 model_pruning.model, device, loss_function,
                                 n_epochs, trainloader, validloader, scheduler,
@@ -112,7 +112,6 @@ def models_variant_archi_param(trainloader, validloader, dataset, n_epochs=150,
                             fname_pruning_retrain_half_results = fname_pruning_retrain_half_base + ".csv"
                             print("Saving model in :", fname_pruning_retrain_half_model)
                             print("Saving results in :", fname_pruning_retrain_half_results)
-
                             model_pruned_half = model_pruning.model
                             model_pruned_half.half()
                             results_half_precision = {
@@ -146,9 +145,6 @@ def models_variant_archi_param(trainloader, validloader, dataset, n_epochs=150,
                                 results_bc_model.to_csv(
                                     os.path.join(results_dir,
                                                  fname_pruning_retrain_half_bc_results))
-
-                                # Est-ce que j'ai besoin, à chaque fois que je modifie le modèle,
-                                # de réinitialiser l'optimizer & le scheduler?
 
 
 for dataset in ["cifar10", "cifar100"]:

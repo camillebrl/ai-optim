@@ -11,11 +11,11 @@ def function_separation_on_tensor(nb_bits, tensor, device):
         tensor.size() + (array_0.shape))
     tensor_0 = torch.tensor(full_array, device=device)
     x = torch.unsqueeze(tensor, dim=-1)  # on transforme tensor en a,b,c,1
-    results = torch.gather(tensor_0, dim=-1, index=torch.unsqueeze(
-        torch.argmin((tensor_0 - x) ** 2, dim=-1), dim=-1))
-    # gather a besoin d'avoir les mêmes dimensions pour les 2
-    return results.view(tensor.size())
     # on change le tensor en mettant dedans les valeurs les plus proches des valeurs à la même place de tensor_0
+    results = torch.gather(tensor_0, dim=-1, index=torch.unsqueeze(
+        torch.argmin((tensor_0 - x) ** 2, dim=-1), dim=-1)) 
+    # gather a besoin d'avoir les mêmes dimensions pour les 2
+    return results.view(tensor.size()) # on remet de la même taille que le tensor initial vu qu'on avait ajouté une dim
     # return tensor_0[torch.argmin((tensor_0-x)**2,dim=-1)]
 
 
@@ -81,11 +81,6 @@ class BC():
         # (2) Binarize the weights in the model, by iterating through the list
         # of target modules and overwrite the values with their binary version
         for index in range(self.num_of_params):
-            print(index)
-            print(self.target_modules[index].data.size())
-            print(function_separation_on_tensor(self.nb_bits,
-                                                self.target_modules[index].data,
-                                                self.device).size())
             self.target_modules[index].data.copy_(
                 function_separation_on_tensor(self.nb_bits,
                                               self.target_modules[index].data,
