@@ -16,5 +16,4 @@ def init_logging():
 def init_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", default="cifar10")
-    args = parser.parse_args()
     return parser

@@ -3,7 +3,6 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
-
 from architecture_ResNet import ResNet, Bottleneck, nums_blocks
 from hyperparameters import (RegularizationHyperparameters,
                              PruningHyperparameters,
@@ -25,7 +24,6 @@ def regularization(dataset, n_classes, train_loader, test_loader, n_epochs):
     loss_function = nn.CrossEntropyLoss()
     gradient_method = "SGD"
     scheduler = "CosineAnnealingLR"
-    n_epochs = 200
     regul_coef = 0.2
     regul_function = "simple"
 
@@ -56,43 +54,6 @@ def regularization(dataset, n_classes, train_loader, test_loader, n_epochs):
     reqularized_run = ModelRun(model.state_dict(), regul_hparams)
     torch.save(reqularized_run, model_dir + fname_model)
     results.to_csv(results_dir + fname_results)
-
-
-def quantization(dataset, n_classes, train_loader, test_loader, n_epochs):
-    listed_dir = f"./{dataset}/models/models_pruned"
-    for f in os.listdir(listed_dir):
-        logging.info(f"Quantizing model in {f}")
-        nb_bits = 3
-        model, hparams = load_model_and_hyperparameters(f, listed_dir, n_classes)
-        quanti_hparams = QuantizationHyperparameters(hparams.learning_rate,
-                                                     hparams.weight_decay,
-                                                     hparams.momentum,
-                                                     hparams.loss_function,
-                                                     hparams.gradient_method,
-                                                     hparams.model_name,
-                                                     hparams.scheduler,
-                                                     hparams.nb_bits)
-
-        bc_model = BC(model, nb_bits, CN.DEVICE)
-        optimizer, scheduler = get_optimizer_and_scheduler(hparams,
-                                                           bc_model,
-                                                           n_epochs)
-
-        results = train_model_quantization(bc_model, CN.DEVICE,
-                                           hparams.loss_function, n_epochs,
-                                           train_loader, test_loader,
-                                           scheduler,
-                                           optimizer)
-
-        fname = quanti_hparams.build_name()
-        model_dir = f"./{dataset}/models/models_quantized/"
-        results_dir = f"./{dataset}/results/"
-        fname_model = fname + ".run"
-        fname_results = fname + ".csv"
-        logging.info("Saving model quantized" + fname)
-        quantized_run = ModelRun(model.state_dict(), quanti_hparams)
-        torch.save(quantized_run, model_dir + fname_model)
-        results.to_csv(results_dir + fname_results)
 
 
 def pruning(dataset, n_classes, train_loader, test_loader, n_epochs):
@@ -132,9 +93,46 @@ def pruning(dataset, n_classes, train_loader, test_loader, n_epochs):
         results_dir = f"./{dataset}/results/"
         fname_model = fname + ".run"
         fname_results = fname + ".csv"
-        print("Saving model pruned" + fname)
+        logging.info("Saving model pruned" + fname)
         pruned_run = ModelRun(model.state_dict(), pruning_hyperparameters)
         torch.save(pruned_run, model_dir + fname_model)
+        results.to_csv(results_dir + fname_results)
+
+
+def quantization(dataset, n_classes, train_loader, test_loader, n_epochs):
+    listed_dir = f"./{dataset}/models/models_pruned"
+    for f in os.listdir(listed_dir):
+        logging.info(f"Quantizing model in {f}")
+        nb_bits = 3
+        model, hparams = load_model_and_hyperparameters(f, listed_dir, n_classes)
+        quanti_hparams = QuantizationHyperparameters(hparams.learning_rate,
+                                                     hparams.weight_decay,
+                                                     hparams.momentum,
+                                                     hparams.loss_function,
+                                                     hparams.gradient_method,
+                                                     hparams.model_name,
+                                                     hparams.scheduler,
+                                                     nb_bits)
+
+        optimizer, scheduler = get_optimizer_and_scheduler(hparams,
+                                                           model,
+                                                           n_epochs)
+        bc_model = BC(model, nb_bits, CN.DEVICE)
+
+        results = train_model_quantization(bc_model, CN.DEVICE,
+                                           hparams.loss_function, n_epochs,
+                                           train_loader, test_loader,
+                                           scheduler,
+                                           optimizer)
+
+        fname = quanti_hparams.build_name()
+        model_dir = f"./{dataset}/models/models_quantized/"
+        results_dir = f"./{dataset}/results/"
+        fname_model = fname + ".run"
+        fname_results = fname + ".csv"
+        logging.info("Saving model quantized" + fname)
+        quantized_run = ModelRun(model.state_dict(), quanti_hparams)
+        torch.save(quantized_run, model_dir + fname_model)
         results.to_csv(results_dir + fname_results)
 
 
