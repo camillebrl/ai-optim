@@ -109,10 +109,10 @@ def quantization(dataset, n_classes, train_loader, test_loader):
                                    momentum=hparams.momentum,
                                    weight_decay=hparams.weight_decay)
         if hparams.scheduler == "CosineAnnealingLR":
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(hparams.optimizer,
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
                                                                    T_max=n_epochs)
         elif hparams.scheduler == "ReduceOnPlateau":
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(hparams.optimizer,
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
                                                                    T_max=n_epochs)
 
         bc_model = BC(model, nb_bits, device)
@@ -120,8 +120,8 @@ def quantization(dataset, n_classes, train_loader, test_loader):
         results = train_model_quantization(bc_model, device,
                                            hparams.loss_function, n_epochs,
                                            train_loader, test_loader,
-                                           hparams.scheduler,
-                                           hparams.optimizer)
+                                           scheduler,
+                                           optimizer)
 
         fname = quanti_hparams.build_name()
         model_dir = f"./{dataset}/models/models_quantized/"
@@ -150,7 +150,6 @@ def pruning(dataset, n_classes, train_loader, test_loader):
 
         pruning_rate = 0.2
         pruning_type = "thinet_normal"
-        pruning_function = "simple"
         n_epochs = 200
 
         pruning_hyperparameters = PruningHyperparameters(hparams.learning_rate,
