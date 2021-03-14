@@ -9,6 +9,7 @@ from hyperparameters import (RegularizationHyperparameters,
                              PruningHyperparameters,
                              QuantizationHyperparameters)
 from model_run import ModelRun
+from binary_connect import BC
 from regularisation import Orthogo
 from pruning_thinet import Pruning
 from train_validation import train_model, train_model_quantization
@@ -27,7 +28,6 @@ def regularization(dataset, n_classes, train_loader, test_loader):
     regul_coef = 0.2
     regul_function = "simple"
 
-    device = CN.DEVICE
     regul_hparams = RegularizationHyperparameters(learning_rate, weight_decay,
                                                   momentum, loss_function,
                                                   gradient_method, model_name,
@@ -35,29 +35,13 @@ def regularization(dataset, n_classes, train_loader, test_loader):
                                                   regul_function)
     model_nb_blocks = nums_blocks[model_name]
     model = ResNet(Bottleneck, model_nb_blocks, num_classes=n_classes)
+    model.to(CN.DEVICE)
+    model_orthogo = Orthogo(model, CN.DEVICE)
+    optimizer, scheduler = get_optimizer_and_scheduler(regul_hparams,
+                                                       model_orthogo,
+                                                       n_epochs)
 
-    if gradient_method == "SGD":
-        optimizer = optim.SGD(model.parameters(),
-                              lr=learning_rate,
-                              momentum=momentum,
-                              weight_decay=weight_decay)
-    elif gradient_method == "Adam":
-        optimizer = optim.Adam(model.parameters(),
-                               lr=learning_rate,
-                               momentum=momentum,
-                               weight_decay=weight_decay)
-
-    if scheduler == "CosineAnnealingLR":
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
-                                                               T_max=n_epochs)
-    elif scheduler == "ReduceOnPlateau":
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
-                                                               T_max=n_epochs)
-
-    model.to(device)
-    model_orthogo = Orthogo(model, device)
-
-    results = train_model(model, device, loss_function,
+    results = train_model(model, CN.DEVICE, loss_function,
                           n_epochs, train_loader, test_loader,
                           scheduler, optimizer, model_orthogo,
                           regul_function, regul_coef)
@@ -76,19 +60,10 @@ def regularization(dataset, n_classes, train_loader, test_loader):
 def quantization(dataset, n_classes, train_loader, test_loader):
     listed_dir = f"./{dataset}/models/models_pruned"
     for f in os.listdir(listed_dir):
-        model_run = torch.load(os.path.join(listed_dir, f))
-        hparams = model_run.hyperparameters
-
-        device = CN.DEVICE
-        model_nb_blocks = nums_blocks[hparams.model_name]
-        model = ResNet(Bottleneck, model_nb_blocks, num_classes=n_classes)
-        model.to(device)
-        model.load_state_dict(model_run.state_dict)
-        model.half()
-
+        logging.inf(f"Quantizing model in {f}")
         nb_bits = 3
         n_epochs = 200
-
+        model, hparams = load_model_and_hyperparameters(f, listed_dir, n_classes)
         quanti_hparams = QuantizationHyperparameters(hparams.learning_rate,
                                                      hparams.weight_decay,
                                                      hparams.momentum,
@@ -98,26 +73,12 @@ def quantization(dataset, n_classes, train_loader, test_loader):
                                                      hparams.scheduler,
                                                      hparams.nb_bits)
 
-        if hparams.gradient_method == "SGD":
-            optimizer = optim.SGD(model.parameters(),
-                                  lr=hparams.learning_rate,
-                                  momentum=hparams.momentum,
-                                  weight_decay=hparams.weight_decay)
-        elif hparams.gradient_method == "Adam":
-            optimizer = optim.Adam(model.parameters(),
-                                   lr=hparams.learning_rate,
-                                   momentum=hparams.momentum,
-                                   weight_decay=hparams.weight_decay)
-        if hparams.scheduler == "CosineAnnealingLR":
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
-                                                                   T_max=n_epochs)
-        elif hparams.scheduler == "ReduceOnPlateau":
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
-                                                                   T_max=n_epochs)
+        bc_model = BC(model, nb_bits, CN.DEVICE)
+        optimizer, scheduler = get_optimizer_and_scheduler(hparams,
+                                                           bc_model,
+                                                           n_epochs)
 
-        bc_model = BC(model, nb_bits, device)
-
-        results = train_model_quantization(bc_model, device,
+        results = train_model_quantization(bc_model, CN.DEVICE,
                                            hparams.loss_function, n_epochs,
                                            train_loader, test_loader,
                                            scheduler,
@@ -138,19 +99,10 @@ def pruning(dataset, n_classes, train_loader, test_loader):
     listed_dir = f"./{dataset}/models/models_regularized"
     for f in os.listdir(listed_dir):
         logging.info(f"Pruning model in {f}")
-
-        model_run = torch.load(os.path.join(listed_dir, f))
-        hparams = model_run.hyperparameters
-
-        device = CN.DEVICE
-        model_nb_blocks = nums_blocks[hparams.model_name]
-        model = ResNet(Bottleneck, model_nb_blocks, num_classes=n_classes)
-        model.to(device)
-        model.load_state_dict(model_run.state_dict)
-
         pruning_rate = 0.2
         pruning_type = "thinet_normal"
         n_epochs = 200
+        model, hparams = load_model_and_hyperparameters(f, listed_dir, n_classes)
 
         pruning_hyperparameters = PruningHyperparameters(hparams.learning_rate,
                                                          hparams.weight_decay,
@@ -162,30 +114,17 @@ def pruning(dataset, n_classes, train_loader, test_loader):
                                                          pruning_rate,
                                                          pruning_type)
 
-        if hparams.gradient_method == "SGD":
-            optimizer = optim.SGD(model.parameters(), lr=hparams.learning_rate,
-                                  momentum=hparams.momentum,
-                                  weight_decay=hparams.weight_decay)
-        elif hparams.gradient_method == "Adam":
-            optimizer = optim.Adam(model.parameters(), lr=hparams.learning_rate,
-                                   momentum=hparams.momentum,
-                                   weight_decay=hparams.weight_decay)
-
-        if hparams.scheduler == "CosineAnnealingLR":
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
-                                                                   T_max=n_epochs)
-        elif hparams.scheduler == "ReduceOnPlateau":
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
-                                                                   T_max=n_epochs)
-
-        model_pruned = Pruning(model, device)
+        model_pruned = Pruning(model, CN.DEVICE)
+        optimizer, scheduler = get_optimizer_and_scheduler(hparams,
+                                                           model_pruned,
+                                                           n_epochs)
 
         if pruning_type == "thinet_normal":
             model_pruned.thinet(train_loader, pruning_rate)
         elif pruning_type == "thinet_batch":
             model_pruned.thinet_batch(train_loader, pruning_rate)
 
-        results = train_model(model_pruned.model, device, hparams.loss_function,
+        results = train_model(model_pruned.model, CN.DEVICE, hparams.loss_function,
                               n_epochs, train_loader, test_loader, scheduler,
                               optimizer, None, None, None)
 
@@ -198,3 +137,38 @@ def pruning(dataset, n_classes, train_loader, test_loader):
         pruned_run = ModelRun(model.state_dict(), pruning_hyperparameters)
         torch.save(pruned_run, model_dir + fname_model)
         results.to_csv(results_dir + fname_results)
+
+
+def get_optimizer_and_scheduler(hyperparameters, model, n_epochs):
+    if hyperparameters.gradient_method == "SGD":
+        optimizer = optim.SGD(model.parameters(),
+                              lr=hyperparameters.learning_rate,
+                              momentum=hyperparameters.momentum,
+                              weight_decay=hyperparameters.weight_decay)
+    elif hyperparameters.gradient_method == "Adam":
+        optimizer = optim.Adam(model.parameters(),
+                               lr=hyperparameters.learning_rate,
+                               momentum=hyperparameters.momentum,
+                               weight_decay=hyperparameters.weight_decay)
+
+    if hyperparameters.scheduler == "CosineAnnealingLR":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
+                                                               T_max=n_epochs)
+    elif hyperparameters.scheduler == "ReduceOnPlateau":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
+                                                               T_max=n_epochs)
+    else:
+        raise ValueError(
+            f"Invalid scheduler found : {hyperparameters.scheduler} found,"
+            f" expected ReduceOnPlateau or CosineAnnealingLR"
+    return optimizer, scheduler
+
+
+def load_model_and_hyperparameters(filename, directory, n_classes):
+    model_run = torch.load(os.path.join(directory, filename))
+    hparams = model_run.hyperparameters
+    model_nb_blocks = nums_blocks[hparams.model_name]
+    model = ResNet(Bottleneck, model_nb_blocks, num_classes=n_classes)
+    model.to(CN.DEVICE)
+    model.load_state_dict(model_run.state_dict)
+    return model, hparams
