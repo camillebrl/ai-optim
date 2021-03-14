@@ -48,9 +48,9 @@ def train_quantization(epoch, bc_model, optimizer, device, trainloader,
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
-        t0=time.time()
+        t0 = time.time()
         bc_model.binarization()
-        print(time.time()-t0)
+        print(time.time() - t0)
         outputs = bc_model.forward(inputs)
         loss = loss_function(outputs, targets)
         loss.backward()

@@ -15,7 +15,7 @@ class Hyperparameters():
         return fname
 
 
-class Pruning_Hyperparameters(Hyperparameters):
+class PruningHyperparameters(Hyperparameters):
     def __init__(self, learning_rate, weight_decay, momentum, loss_function, gradient_method,
                  model_name, scheduler, pruning_rate, pruning_type):
         super().__init__(learning_rate, weight_decay, momentum, loss_function, gradient_method,
@@ -28,7 +28,7 @@ class Pruning_Hyperparameters(Hyperparameters):
         return f'Pruning_{self.pruning_type}_{self.pruning_rate}_' + base_name
 
 
-class Quantization_Hyperparameters(Hyperparameters):
+class QuantizationHyperparameters(Hyperparameters):
     def __init__(self, learning_rate, weight_decay, momentum, loss_function, gradient_method,
                  model_name, scheduler, nb_bits):
         super().__init__(learning_rate, weight_decay, momentum, loss_function, gradient_method,
@@ -40,7 +40,7 @@ class Quantization_Hyperparameters(Hyperparameters):
         return f'Quantization_{self.nb_bits}_' + base_name
 
 
-class Regularization_Hyperparameters(Hyperparameters):
+class RegularizationHyperparameters(Hyperparameters):
     def __init__(self, learning_rate, weight_decay, momentum, loss_function, gradient_method,
                  model_name, scheduler, regul_coef, regul_function):
         super().__init__(learning_rate, weight_decay, momentum, loss_function, gradient_method,

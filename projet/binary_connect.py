@@ -14,9 +14,10 @@ def function_separation_on_tensor(nb_bits, tensor, device):
     x = torch.unsqueeze(tensor, dim=-1)  # on transforme tensor en a,b,c,1
     # on change le tensor en mettant dedans les valeurs les plus proches des valeurs à la même place de tensor_0
     results = torch.gather(tensor_0, dim=-1, index=torch.unsqueeze(
-        torch.argmin((tensor_0 - x) ** 2, dim=-1), dim=-1)) 
+        torch.argmin((tensor_0 - x) ** 2, dim=-1), dim=-1))
     # gather a besoin d'avoir les mêmes dimensions pour les 2
-    return results.view(tensor.size()) # on remet de la même taille que le tensor initial vu qu'on avait ajouté une dim
+    return results.view(
+        tensor.size())  # on remet de la même taille que le tensor initial vu qu'on avait ajouté une dim
     # return tensor_0[torch.argmin((tensor_0-x)**2,dim=-1)]
 
 

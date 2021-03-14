@@ -61,5 +61,5 @@ class Orthogo():
             u = w.dot(x)
             v = w.dot(u)
             regul += reg_coef * (
-                        torch.sum(v ** 2, dim=-1) / torch.sum(u ** 2, dim=-1))
+                    torch.sum(v ** 2, dim=-1) / torch.sum(u ** 2, dim=-1))
         return regul
