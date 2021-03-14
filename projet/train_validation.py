@@ -2,17 +2,16 @@ import logging
 
 import pandas as pd
 import torch
-import time
+from tqdm import tqdm
 
 
-def train(epoch, model, optimizer, device, trainloader, loss_function,
-          model_orthogo, function, reg_coef):
-    print('\nEpoch: %d' % epoch)
+def run_train_epoch(model, optimizer, device, trainloader, loss_function, model_orthogo, function,
+                    reg_coef):
     model.train()
     train_loss = 0
     correct = 0
     total = 0
-    for batch_idx, (inputs, targets) in enumerate(trainloader):
+    for batch_idx, (inputs, targets) in tqdm(enumerate(trainloader)):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
         outputs = model(inputs)
@@ -31,6 +30,7 @@ def train(epoch, model, optimizer, device, trainloader, loss_function,
         loss.backward()
         optimizer.step()
         train_loss += loss.item()
+        # TODO : log the loss to tensorboard
         _, predicted = outputs.max(1)
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
@@ -38,9 +38,7 @@ def train(epoch, model, optimizer, device, trainloader, loss_function,
     return acc
 
 
-def train_quantization(epoch, bc_model, optimizer, device, trainloader,
-                       loss_function):
-    print('\nEpoch: %d' % epoch)
+def run_train_epoch_quantization(bc_model, optimizer, device, trainloader, loss_function):
     bc_model.model.train()
     train_loss = 0
     correct = 0
@@ -48,13 +46,12 @@ def train_quantization(epoch, bc_model, optimizer, device, trainloader,
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
-        t0 = time.time()
         bc_model.binarization()
-        print(time.time() - t0)
         outputs = bc_model.forward(inputs)
         loss = loss_function(outputs, targets)
         loss.backward()
         bc_model.restore()
+        # TODO : log the loss to tensorboard
         optimizer.step()
         bc_model.clip()
         train_loss += loss.item()
@@ -65,7 +62,7 @@ def train_quantization(epoch, bc_model, optimizer, device, trainloader,
     return acc
 
 
-def validation(epoch, model, device, validloader):
+def run_validation_epoch(model, device, validloader):
     model.eval()
     correct = 0
     total = 0
@@ -75,12 +72,13 @@ def validation(epoch, model, device, validloader):
             outputs = model(inputs)
             _, predicted = outputs.max(1)
             total += targets.size(0)
+            # TODO : log the loss to tensorboard
             correct += predicted.eq(targets).sum().item()
     acc = 100. * correct / total
     return acc
 
 
-def validation_quantization(epoch, bc_model, device, validloader):
+def run_validation_epoch_quantization(bc_model, device, validloader):
     bc_model.model.eval()
     test_loss = 0
     correct = 0
@@ -90,6 +88,7 @@ def validation_quantization(epoch, bc_model, device, validloader):
         for batch_idx, (inputs, targets) in enumerate(validloader):
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = bc_model.forward(inputs)
+            # TODO : log the loss to tensorboard
             _, predicted = outputs.max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
@@ -98,7 +97,7 @@ def validation_quantization(epoch, bc_model, device, validloader):
     return acc
 
 
-def validation_half(epoch, model, device, validloader):
+def run_validation_epoch_half_precision(model, device, validloader):
     model.eval()
     correct = 0
     total = 0
@@ -106,6 +105,7 @@ def validation_half(epoch, model, device, validloader):
         for batch_idx, (inputs, targets) in enumerate(validloader):
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = model(inputs.half())
+            # TODO : log the loss to tensorboard
             _, predicted = outputs.max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
@@ -113,43 +113,34 @@ def validation_half(epoch, model, device, validloader):
     return acc
 
 
-def get_schedulers(optimizer, n_epochs):
-    schedulers = {
-        "CosineAnnealingLR": torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=n_epochs),
-        "ReduceLROnPlateau": torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode="max"),
-    }
-    return schedulers
-
-
 def train_model(model, device, loss_function, n_epochs, trainloader,
                 validloader, scheduler, optimizer, model_orthogo, function,
                 reg_coef):
     best_acc_epoch = 0
     results = {"epoch": [], "train_accuracy": [], "validation_accuracy": []}
-    epoch = 0
-    dif = 0
     overfit_counter = 0
-    previous_dif = 0
-    while epoch < n_epochs and overfit_counter < 10:
-        train_acc = train(epoch, model, optimizer, device, trainloader,
-                          loss_function, model_orthogo, function, reg_coef)
-        valid_acc = validation(epoch, model, device, validloader)
+    previous_diff = 0
+    logging.info(f"Running normal training on {n_epochs} epochs")
+    for epoch in tqdm(range(1, n_epochs + 1)):
+        if overfit_counter > 10:
+            logging.info(f"Early stopping at epoch {epoch}")
+            break
+        train_acc = run_train_epoch(model, optimizer, device, trainloader, loss_function,
+                                    model_orthogo, function, reg_coef)
+        valid_acc = run_validation_epoch(model, device, validloader)
         scheduler.step()
-        print(train_acc, valid_acc)
+        # TODO : use tensorboard
         results["train_accuracy"].append(train_acc)
         results["validation_accuracy"].append(valid_acc)
         results["epoch"].append(epoch)
-        dif = train_acc - valid_acc
-        if dif > previous_dif:
+        accuracy_diff = train_acc - valid_acc
+        if accuracy_diff > previous_diff:
             overfit_counter += 1
         else:
             overfit_counter = 0
         if valid_acc > best_acc_epoch:
             best_acc_epoch = valid_acc
-        previous_dif = dif
-        epoch += 1
+        previous_diff = accuracy_diff
     return pd.DataFrame.from_dict(results).set_index("epoch")
 
 
@@ -157,28 +148,27 @@ def train_model_quantization(bc_model, device, loss_function, n_epochs,
                              trainloader, validloader, scheduler, optimizer):
     best_acc_epoch = 0
     results = {"epoch": [], "train_accuracy": [], "validation_accuracy": []}
-    epoch = 0
-    dif = 0
     overfit_counter = 0
-    previous_dif = 0
-    while epoch < n_epochs and overfit_counter < 10:
-        train_acc = train_quantization(epoch, bc_model, optimizer, device,
-                                       trainloader, loss_function)
-        valid_acc = validation_quantization(epoch, bc_model, device,
-                                            validloader)
+    previous_diff = 0
+    logging.info(f"Running quantized training on {n_epochs} epochs")
+    for epoch in tqdm(range(1, n_epochs + 1)):
+        if overfit_counter > 10:
+            logging.info(f"Early stopping at epoch {epoch}")
+            break
+        train_acc = run_train_epoch_quantization(bc_model, optimizer, device, trainloader,
+                                                 loss_function)
+        valid_acc = run_validation_epoch_quantization(bc_model, device, validloader)
         # il diminue le lr quand la validation accuracy n'augmente plus
         scheduler.step()
-        print(train_acc, valid_acc)
         results["train_accuracy"].append(train_acc)
         results["validation_accuracy"].append(valid_acc)
         results["epoch"].append(epoch)
-        dif = train_acc - valid_acc
-        if dif > previous_dif:
+        accuracy_diff = train_acc - valid_acc
+        if accuracy_diff > previous_diff:
             overfit_counter += 1
         else:
             overfit_counter = 0
         if valid_acc > best_acc_epoch:
             best_acc_epoch = valid_acc
-        previous_dif = dif
-        epoch += 1
+        previous_diff = accuracy_diff
     return pd.DataFrame.from_dict(results).set_index("epoch")
