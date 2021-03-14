@@ -9,7 +9,7 @@ from import_dataset import train_cifar10, train_cifar100, test_cifar10, \
     test_cifar100
 import torch.nn as nn
 
-from hyparameters import Regularization_Hyperparameters
+from hyperparameters import Regularization_Hyperparameters
 from import_dataset import train_cifar10,train_cifar100,test_cifar10,test_cifar100
 from architecture_ResNet import ResNet,Bottleneck,nums_blocks
 import constants as CN

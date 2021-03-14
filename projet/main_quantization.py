@@ -9,9 +9,10 @@ from import_dataset import train_cifar10, train_cifar100, test_cifar10, \
     test_cifar100
 import torch.nn as nn
 
-from hyparameters import Quantization_Hyperparameters
-from import_dataset import train_cifar10,train_cifar100,test_cifar10,test_cifar100
-from architecture_ResNet import ResNet,Bottleneck,nums_blocks
+from architecture_ResNet import ResNet, Bottleneck, nums_blocks
+from hyperparameters import Quantization_Hyperparameters
+from import_dataset import train_cifar10, train_cifar100, test_cifar10, test_cifar100
+from utils import findnth_left, findnth_right
 import constants as CN
 
 def findnth_left(haystack, needle, n):
