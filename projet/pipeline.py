@@ -16,7 +16,8 @@ from train_validation import train_model, train_model_quantization
 import constants as CN
 
 
-def regularization(dataset, n_classes, train_loader, test_loader):
+def regularization(dataset, n_classes, train_loader, test_loader, n_epochs):
+    logging.info("Regularizing model")
     model_name = "ResNet18"
     learning_rate = 0.001
     weight_decay = 5e-5
@@ -36,10 +37,10 @@ def regularization(dataset, n_classes, train_loader, test_loader):
     model_nb_blocks = nums_blocks[model_name]
     model = ResNet(Bottleneck, model_nb_blocks, num_classes=n_classes)
     model.to(CN.DEVICE)
-    model_orthogo = Orthogo(model, CN.DEVICE)
     optimizer, scheduler = get_optimizer_and_scheduler(regul_hparams,
-                                                       model_orthogo,
+                                                       model,
                                                        n_epochs)
+    model_orthogo = Orthogo(model, CN.DEVICE)
 
     results = train_model(model, CN.DEVICE, loss_function,
                           n_epochs, train_loader, test_loader,
@@ -57,12 +58,11 @@ def regularization(dataset, n_classes, train_loader, test_loader):
     results.to_csv(results_dir + fname_results)
 
 
-def quantization(dataset, n_classes, train_loader, test_loader):
+def quantization(dataset, n_classes, train_loader, test_loader, n_epochs):
     listed_dir = f"./{dataset}/models/models_pruned"
     for f in os.listdir(listed_dir):
-        logging.inf(f"Quantizing model in {f}")
+        logging.info(f"Quantizing model in {f}")
         nb_bits = 3
-        n_epochs = 200
         model, hparams = load_model_and_hyperparameters(f, listed_dir, n_classes)
         quanti_hparams = QuantizationHyperparameters(hparams.learning_rate,
                                                      hparams.weight_decay,
@@ -95,13 +95,12 @@ def quantization(dataset, n_classes, train_loader, test_loader):
         results.to_csv(results_dir + fname_results)
 
 
-def pruning(dataset, n_classes, train_loader, test_loader):
+def pruning(dataset, n_classes, train_loader, test_loader, n_epochs):
     listed_dir = f"./{dataset}/models/models_regularized"
     for f in os.listdir(listed_dir):
         logging.info(f"Pruning model in {f}")
         pruning_rate = 0.2
         pruning_type = "thinet_normal"
-        n_epochs = 200
         model, hparams = load_model_and_hyperparameters(f, listed_dir, n_classes)
 
         pruning_hyperparameters = PruningHyperparameters(hparams.learning_rate,
@@ -113,11 +112,11 @@ def pruning(dataset, n_classes, train_loader, test_loader):
                                                          hparams.scheduler,
                                                          pruning_rate,
                                                          pruning_type)
+        optimizer, scheduler = get_optimizer_and_scheduler(hparams,
+                                                           model,
+                                                           n_epochs)
 
         model_pruned = Pruning(model, CN.DEVICE)
-        optimizer, scheduler = get_optimizer_and_scheduler(hparams,
-                                                           model_pruned,
-                                                           n_epochs)
 
         if pruning_type == "thinet_normal":
             model_pruned.thinet(train_loader, pruning_rate)
@@ -150,6 +149,10 @@ def get_optimizer_and_scheduler(hyperparameters, model, n_epochs):
                                lr=hyperparameters.learning_rate,
                                momentum=hyperparameters.momentum,
                                weight_decay=hyperparameters.weight_decay)
+    else:
+        raise ValueError(
+            f"Invalid optimizer found : {hyperparameters.optimizer} found,"
+            f" expected Adam or SGD")
 
     if hyperparameters.scheduler == "CosineAnnealingLR":
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
@@ -160,7 +163,7 @@ def get_optimizer_and_scheduler(hyperparameters, model, n_epochs):
     else:
         raise ValueError(
             f"Invalid scheduler found : {hyperparameters.scheduler} found,"
-            f" expected ReduceOnPlateau or CosineAnnealingLR"
+            f" expected ReduceOnPlateau or CosineAnnealingLR")
     return optimizer, scheduler
 
 
