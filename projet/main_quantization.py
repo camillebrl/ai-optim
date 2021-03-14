@@ -9,15 +9,20 @@ import torch.nn as nn
 from architecture_ResNet import ResNet, Bottleneck, nums_blocks
 from hyperparameters import QuantizationHyperparameters
 from import_dataset import train_cifar10, train_cifar100, test_cifar10, test_cifar100
-from utils import findnth_left, findnth_right
+from utils import init_logging, init_parser
 from model_run import ModelRun
 import constants as CN
 
-dataset = "cifar10"
+init_logging()
+parser = init_parser()
+args = parser.parse_args()
+dataset = args.dataset
 if dataset == "cifar10":
+    n_classes = 10
     trainloader = train_cifar10
     testloader = test_cifar10
 elif dataset == "cifar100":
+    n_classes = 100
     trainloader = train_cifar100
     testloader = test_cifar100
 
@@ -27,7 +32,7 @@ for f in os.listdir(f"./{dataset}/models/models_pruned"):
 
     device = CN.DEVICE
     model_nb_blocks = nums_blocks[hparams.model_name]
-    model = ResNet(Bottleneck, model_nb_blocks, num_classes=int(dataset[dataset.find("1"):]))
+    model = ResNet(Bottleneck, model_nb_blocks, num_classes=n_classes)
     model.to(device)
     model.load_state_dict(model_run.state_dict)
     model.half()
@@ -70,7 +75,7 @@ for f in os.listdir(f"./{dataset}/models/models_pruned"):
     results_dir = f"./{dataset}/results/"
     fname_model = fname + ".run"
     fname_results = fname + ".csv"
-    print("Saving model quantized" + fname)
+    logging.info("Saving model quantized" + fname)
     quantized_run = ModelRun(model.state_dict(), quantization_Hyperparameters)
     torch.save(quantized_run, model_dir + fname_model)
     results.to_csv(results_dir + fname_results)

@@ -1,22 +1,28 @@
 import os
+import logging
 
 import torch
 import torch.optim as optim
 from train_validation import train_model
-import torch.nn as nn
 
 from architecture_ResNet import ResNet, Bottleneck, nums_blocks
 from hyperparameters import PruningHyperparameters
+from utils import init_logging, init_parser
 from import_dataset import train_cifar10, train_cifar100, test_cifar10, test_cifar100
 from pruning_thinet import Pruning
 from model_run import ModelRun
 import constants as CN
 
-dataset = "cifar10"
+init_logging()
+parser = init_parser()
+args = parser.parse_args()
+dataset = args.dataset
 if dataset == "cifar10":
+    n_classes = 10
     trainloader = train_cifar10
     testloader = test_cifar10
 elif dataset == "cifar100":
+    n_classes = 100
     trainloader = train_cifar100
     testloader = test_cifar100
 

@@ -1,3 +1,4 @@
+import logging
 import torch
 import torch.optim as optim
 from train_validation import train_model
@@ -9,12 +10,18 @@ from architecture_ResNet import ResNet, Bottleneck, nums_blocks
 import constants as CN
 from regularisation import Orthogo
 from model_run import ModelRun
+from utils import init_logging, init_parser
 
-dataset = "cifar10"
+init_logging()
+parser = init_parser()
+args = parser.parse_args()
+dataset = args.dataset
 if dataset == "cifar10":
+    n_classes = 10
     trainloader = train_cifar10
     testloader = test_cifar10
 elif dataset == "cifar100":
+    n_classes = 100
     trainloader = train_cifar100
     testloader = test_cifar100
 
@@ -36,7 +43,7 @@ regularization_Hyperparameters = RegularizationHyperparameters(learning_rate, we
                                                                scheduler, regul_coef,
                                                                regul_function)
 model_nb_blocks = nums_blocks[model_name]
-model = ResNet(Bottleneck, model_nb_blocks, num_classes=int(dataset[dataset.find("1"):]))
+model = ResNet(Bottleneck, model_nb_blocks, num_classes=n_classes)
 
 if gradient_method == "SGD":
     optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum,
@@ -63,7 +70,7 @@ model_dir = f"./{dataset}/models/models_regularized/"
 results_dir = f"./{dataset}/results/"
 fname_model = fname + ".run"
 fname_results = fname + ".csv"
-print("Saving model regularized" + fname)
+logging.info("Saving model regularized" + fname)
 reqularized_run = ModelRun(model.state_dict(), regularization_Hyperparameters)
 torch.save(reqularized_run, model_dir + fname_model)
 results.to_csv(results_dir + fname_results)
