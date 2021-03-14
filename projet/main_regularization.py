@@ -8,6 +8,7 @@ from import_dataset import train_cifar10, train_cifar100, test_cifar10, test_cif
 from architecture_ResNet import ResNet, Bottleneck, nums_blocks
 import constants as CN
 from regularisation import Orthogo
+from model_run import ModelRun
 
 dataset = "cifar10"
 if dataset == "cifar10":
@@ -60,8 +61,9 @@ results = train_model(model, device, loss_function,
 fname = regularization_Hyperparameters.build_name()
 model_dir = f"./{dataset}/models/models_regularized/"
 results_dir = f"./{dataset}/results/"
-fname_model = fname + ".pt"
+fname_model = fname + ".run"
 fname_results = fname + ".csv"
 print("Saving model regularized" + fname)
-torch.save(model.state_dict(), model_dir + fname_model)
+reqularized_run = ModelRun(model.state_dict(), regularization_Hyperparameters)
+torch.save(reqularized_run, model_dir + fname_model)
 results.to_csv(results_dir + fname_results)
