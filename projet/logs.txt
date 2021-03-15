@@ -1,0 +1,2 @@
+2021-03-15 09:46:40,237 [INFO] Regularizing model
+2021-03-15 09:46:43,158 [INFO] Running normal training on 200 epochs

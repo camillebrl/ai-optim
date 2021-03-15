@@ -15,6 +15,6 @@ elif dataset == "cifar100":
     train_loader = train_cifar100
     test_loader = test_cifar100
 
-regularization(dataset, n_classes, train_loader, test_loader, 10)
-pruning(dataset, n_classes, train_loader, test_loader, 10)
-quantization(dataset, n_classes, train_loader, test_loader, 10)
+regularization(dataset, n_classes, train_loader, test_loader,200,0.3,"simple")
+pruning(dataset, n_classes, train_loader, test_loader, 200,0.2,"thinet_normal")
+quantization(dataset, n_classes, train_loader, test_loader, 200, 3)

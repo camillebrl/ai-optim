@@ -15,7 +15,12 @@ from train_validation import train_model, train_model_quantization
 import constants as CN
 
 
-def regularization(dataset, n_classes, train_loader, test_loader, n_epochs):
+def regularization(dataset, n_classes, train_loader, test_loader, n_epochs, regul_coef, regul_function):
+    """[summary]
+
+    Args:
+        regul_function ([type]): "simple", "double", "mutual_coherence" ou "spectral_isometry"
+    """
     logging.info("Regularizing model")
     model_name = "ResNet18"
     learning_rate = 0.001
@@ -24,8 +29,6 @@ def regularization(dataset, n_classes, train_loader, test_loader, n_epochs):
     loss_function = nn.CrossEntropyLoss()
     gradient_method = "SGD"
     scheduler = "CosineAnnealingLR"
-    regul_coef = 0.2
-    regul_function = "simple"
 
     regul_hparams = RegularizationHyperparameters(learning_rate, weight_decay,
                                                   momentum, loss_function,
@@ -56,12 +59,15 @@ def regularization(dataset, n_classes, train_loader, test_loader, n_epochs):
     results.to_csv(results_dir + fname_results)
 
 
-def pruning(dataset, n_classes, train_loader, test_loader, n_epochs):
+def pruning(dataset, n_classes, train_loader, test_loader, n_epochs,pruning_rate,pruning_type):
+    """[summary]
+
+    Args:
+        pruning_type ([type]): "thinet_normal" ou "thinet_batch"
+    """
     listed_dir = f"./{dataset}/models/models_regularized"
     for f in os.listdir(listed_dir):
         logging.info(f"Pruning model in {f}")
-        pruning_rate = 0.2
-        pruning_type = "thinet_normal"
         model, hparams = load_model_and_hyperparameters(f, listed_dir, n_classes)
 
         pruning_hyperparameters = PruningHyperparameters(hparams.learning_rate,
@@ -99,11 +105,10 @@ def pruning(dataset, n_classes, train_loader, test_loader, n_epochs):
         results.to_csv(results_dir + fname_results)
 
 
-def quantization(dataset, n_classes, train_loader, test_loader, n_epochs):
+def quantization(dataset, n_classes, train_loader, test_loader, n_epochs,nb_bits):
     listed_dir = f"./{dataset}/models/models_pruned"
     for f in os.listdir(listed_dir):
         logging.info(f"Quantizing model in {f}")
-        nb_bits = 3
         model, hparams = load_model_and_hyperparameters(f, listed_dir, n_classes)
         quanti_hparams = QuantizationHyperparameters(hparams.learning_rate,
                                                      hparams.weight_decay,
