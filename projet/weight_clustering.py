@@ -18,10 +18,8 @@ def regul_deep_k_means(model, device, regul_coef=0.001):
                 target_modules.append(m)
     regul = 0
     for i, m in enumerate(target_modules):
-        width = np.prod(list(m.weight.data[0].size()))
-        height = m.weight.data.size()[0]
-        w = m.weight.data.view(width, height)
-        F = sc.linalg.orth(np.random.random(w.size()[0],w.size()[1]))
+        w = m.weight.data.view(m.weight.data.size()[2],-1) # share s*N avec N=s*C*M
+        F = torch.svd(w)
         regul += min(np.mean(w)) + (regul_coef / 2) * (np.trace(np.transpose(w)*w)) - np.trace(np.transpose(F).matmul(np.transpose(w).matmul(w).matmul(F)))
     return regul
 
