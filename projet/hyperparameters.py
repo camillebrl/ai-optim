@@ -1,3 +1,6 @@
+from datetime import datetime
+
+
 class Hyperparameters():
     def __init__(self, learning_rate, weight_decay, momentum, loss_function, gradient_method,
                  model_name, scheduler):
@@ -13,6 +16,10 @@ class Hyperparameters():
         fname = f"{self.model_name}_{self.loss_function}_{self.learning_rate}_{self.momentum}_" \
                 f"{self.weight_decay}_{self.gradient_method}_{self.scheduler}"
         return fname
+
+    def get_tensorboard_name(self):
+        now_as_str = datetime.now().strftime("%d_%m_%H:%M:%S_")
+        return now_as_str + self.build_name()
 
 
 class PruningHyperparameters(Hyperparameters):

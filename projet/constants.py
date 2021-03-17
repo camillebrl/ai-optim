@@ -4,3 +4,4 @@ import torch
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 LOG_FILENAME = "logs.txt"
+TBOARD = "runs"
