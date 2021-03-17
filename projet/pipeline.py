@@ -15,14 +15,15 @@ from train_validation import train_model, train_model_quantization
 import constants as CN
 
 
-def regularization(dataset, n_classes, train_loader, test_loader, n_epochs, regul_coef, regul_function):
+def regularization(dataset, model_name, n_classes, train_loader, test_loader, n_epochs, regul_coef, regul_function):
     """[summary]
 
     Args:
+        model_name ([type]): "ResNet18", "ResNet34", "ResNet50", "ResNet101" ou "ResNet152"
         regul_function ([type]): "simple", "double", "mutual_coherence" ou "spectral_isometry"
     """
     logging.info("Regularizing model")
-    model_name = "ResNet18"
+    # model_name = "ResNet18"
     learning_rate = 0.001
     weight_decay = 5e-5
     momentum = 0.95
