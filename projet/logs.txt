@@ -1,2 +1,66 @@
 2021-03-15 09:46:40,237 [INFO] Regularizing model
 2021-03-15 09:46:43,158 [INFO] Running normal training on 200 epochs
+2021-03-15 19:20:53,767 [INFO] Saving model regularizedRegul_simple_0.3_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR
+2021-03-15 20:33:28,662 [INFO] Regularizing model
+2021-03-15 20:33:32,086 [INFO] Running normal training on 1 epochs
+2021-03-15 20:36:30,114 [INFO] Saving model regularizedRegul_simple_0.3_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR
+2021-03-15 20:36:30,224 [INFO] Pruning model in Regul_simple_0.3_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 20:36:30,386 [INFO] Pruning on 20 modules with 64 batches
+2021-03-15 20:37:11,646 [INFO] Not treating all modules
+2021-03-15 20:37:11,646 [INFO] Running normal training on 1 epochs
+2021-03-15 20:39:50,029 [INFO] Saving model prunedPruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR
+2021-03-15 20:39:50,134 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 20:39:50,297 [INFO] Running quantized training on 1 epochs
+2021-03-15 20:56:08,352 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 20:56:10,616 [INFO] Running quantized training on 1 epochs
+2021-03-15 20:56:38,999 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 20:56:41,018 [INFO] Running quantized training on 1 epochs
+2021-03-15 21:09:22,432 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 21:09:24,698 [INFO] Running quantized training on 1 epochs
+2021-03-15 21:10:56,278 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 21:10:58,411 [INFO] Running quantized training on 1 epochs
+2021-03-15 21:12:53,164 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 21:12:55,339 [INFO] Running quantized training on 1 epochs
+2021-03-15 21:14:26,760 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 21:14:28,968 [INFO] Running quantized training on 1 epochs
+2021-03-15 21:16:44,979 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 21:16:47,256 [INFO] Running quantized training on 1 epochs
+2021-03-15 21:19:17,943 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 21:19:20,105 [INFO] Running quantized training on 1 epochs
+2021-03-15 21:19:52,117 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 21:19:54,268 [INFO] Running quantized training on 1 epochs
+2021-03-15 21:55:00,956 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 21:55:03,168 [INFO] Running quantized training on 1 epochs
+2021-03-15 21:56:10,271 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 21:56:12,506 [INFO] Running quantized training on 1 epochs
+2021-03-15 21:56:31,347 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 21:56:33,584 [INFO] Running quantized training on 1 epochs
+2021-03-15 21:57:49,538 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 21:57:51,841 [INFO] Running quantized training on 1 epochs
+2021-03-15 21:58:05,496 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 21:58:07,632 [INFO] Running quantized training on 1 epochs
+2021-03-15 22:00:31,799 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 22:00:33,927 [INFO] Running quantized training on 1 epochs
+2021-03-15 22:01:55,563 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 22:01:57,696 [INFO] Running quantized training on 1 epochs
+2021-03-15 22:02:36,330 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 22:02:38,454 [INFO] Running quantized training on 1 epochs
+2021-03-15 22:04:21,019 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 22:04:23,126 [INFO] Running quantized training on 1 epochs
+2021-03-15 22:05:14,953 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 22:05:17,110 [INFO] Running quantized training on 1 epochs
+2021-03-15 22:06:14,867 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 22:06:17,109 [INFO] Running quantized training on 1 epochs
+2021-03-15 22:07:15,359 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 22:07:17,568 [INFO] Running quantized training on 1 epochs
+2021-03-15 22:07:34,685 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 22:07:36,873 [INFO] Running quantized training on 1 epochs
+2021-03-15 22:08:18,634 [INFO] Quantizing model in Pruning_thinet_normal_0.2_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-15 22:08:20,883 [INFO] Running quantized training on 1 epochs
+2021-03-16 22:34:03,840 [INFO] Regularizing model
+2021-03-16 22:34:06,697 [INFO] Running normal training on 200 epochs
+2021-03-17 08:02:12,941 [INFO] Saving model regularizedRegul_simple_0.3_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR
+2021-03-17 08:02:13,116 [INFO] Pruning model in Regul_simple_0.3_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-17 08:02:13,277 [INFO] Pruning on 20 modules with 64 batches
+2021-03-17 08:02:52,918 [INFO] Not treating all modules
+2021-03-17 08:02:52,919 [INFO] Running normal training on 200 epochs

@@ -17,4 +17,4 @@ elif dataset == "cifar100":
 
 regularization(dataset, n_classes, train_loader, test_loader,200,0.3,"simple")
 pruning(dataset, n_classes, train_loader, test_loader, 200,0.2,"thinet_normal")
-quantization(dataset, n_classes, train_loader, test_loader, 200, 3)
+quantization(dataset, n_classes, train_loader, test_loader, 200, 4)

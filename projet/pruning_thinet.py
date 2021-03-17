@@ -41,7 +41,6 @@ class Pruning():
         n = 64
         logging.info(f"Pruning on {len(self.target_modules)} modules with {n} batches")
         for mod, m in tqdm(enumerate(self.target_modules)):
-            t0 = time.time()
             if isinstance(m, nn.Conv2d):
                 list_training = []
                 # récupère au hasard les indices de n batch dans trainloader

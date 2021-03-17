@@ -14,7 +14,7 @@ class Orthogo():
                 self.target_modules.append(m)
 
     def soft_orthogonality_regularization(self, reg_coef):
-        regul = 0.
+        regul = 0
         for i, m in enumerate(self.target_modules):
             width = np.prod(list(m.weight.data[0].size()))
             height = m.weight.data.size()[0]
@@ -57,9 +57,9 @@ class Orthogo():
             width = np.prod(list(m.weight.data[0].size()))
             height = m.weight.data.size()[0]
             w = m.weight.data.view(width, height)
-            x = random.random()
-            u = w.dot(x)
-            v = w.dot(u)
+            x = torch.rand(w.size()[0],w.size()[1])
+            u = w.matmul(x)
+            v = w.matmul(u)
             regul += reg_coef * (
                     torch.sum(v ** 2, dim=-1) / torch.sum(u ** 2, dim=-1))
         return regul
