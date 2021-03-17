@@ -64,3 +64,16 @@
 2021-03-17 08:02:13,277 [INFO] Pruning on 20 modules with 64 batches
 2021-03-17 08:02:52,918 [INFO] Not treating all modules
 2021-03-17 08:02:52,919 [INFO] Running normal training on 200 epochs
+2021-03-17 08:40:12,049 [INFO] Pruning model in Regul_simple_0.3_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-17 08:40:14,070 [INFO] Pruning on 20 modules with 64 batches
+2021-03-17 08:40:54,381 [INFO] Not treating all modules
+2021-03-17 08:40:54,381 [INFO] Running normal training on 200 epochs
+2021-03-17 08:42:34,082 [INFO] Pruning model in Regul_simple_0.3_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-17 08:42:36,076 [INFO] Pruning on 20 modules with 64 batches
+2021-03-17 08:43:17,012 [INFO] Not treating all modules
+2021-03-17 08:43:17,013 [INFO] Running normal training on 200 epochs
+2021-03-17 08:44:04,095 [INFO] Pruning model in Regul_simple_0.3_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run
+2021-03-17 08:44:06,120 [INFO] Pruning on 20 modules with 64 batches
+2021-03-17 08:44:46,091 [INFO] Not treating all modules
+2021-03-17 08:44:46,091 [INFO] Running normal training on 200 epochs
+2021-03-17 08:45:50,820 [INFO] Pruning model in Regul_simple_0.3_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR.run

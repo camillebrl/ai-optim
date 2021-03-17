@@ -41,12 +41,13 @@ class Pruning():
         n = 64
         logging.info(f"Pruning on {len(self.target_modules)} modules with {n} batches")
         for mod, m in tqdm(enumerate(self.target_modules)):
+            print("module",mod)
             if isinstance(m, nn.Conv2d):
                 list_training = []
                 # récupère au hasard les indices de n batch dans trainloader
                 subset_indices = [random.randint(0, len(trainloader) - 1) for _
                                   in range(n)]
-                for i, (inputs, targets) in tqdm(enumerate(trainloader)):
+                for i, (inputs, targets) in enumerate(trainloader):
                     inputs, targets = inputs.to(self.device), targets.to(self.device)
                     if i in subset_indices:
                         for j in range(inputs.size()[0]):
@@ -137,8 +138,6 @@ class Pruning():
                 # Car total_channels ne contient que les poids que l'on garde
                 # m.weight.data=m.weight.data[:,total_channels,:,:]
                 # m._input_hook[i]=m._input_hook[i][total_channels,:,:]
-            logging.info("Not treating all modules")
-            break
 
     def thinet_batch(self, trainloader, p_to_delete):
         for m in self.target_modules:
