@@ -3,6 +3,8 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.tensorboard import SummaryWriter
+
 from architecture_ResNet import ResNet, Bottleneck, nums_blocks
 from hyperparameters import (RegularizationHyperparameters,
                              PruningHyperparameters,
@@ -15,7 +17,8 @@ from train_validation import train_model, train_model_quantization
 import constants as CN
 
 
-def regularization(dataset, model_name, n_classes, train_loader, test_loader, n_epochs, regul_coef, regul_function):
+def regularization(dataset, model_name, n_classes, train_loader, test_loader, n_epochs, regul_coef,
+                   regul_function):
     """[summary]
 
     Args:
@@ -43,11 +46,13 @@ def regularization(dataset, model_name, n_classes, train_loader, test_loader, n_
                                                        model,
                                                        n_epochs)
     model_orthogo = Orthogo(model, CN.DEVICE)
+    tensorboard_logdir = regul_hparams.get_tensorboard_name()
+    writer = SummaryWriter(os.path.join(CN.TBOARD, tensorboard_logdir))
 
     results = train_model(model, CN.DEVICE, loss_function,
                           n_epochs, train_loader, test_loader,
                           scheduler, optimizer, model_orthogo,
-                          regul_function, regul_coef)
+                          regul_function, regul_coef, writer)
 
     fname = regul_hparams.build_name()
     model_dir = f"./{dataset}/models/models_regularized/"
@@ -58,9 +63,10 @@ def regularization(dataset, model_name, n_classes, train_loader, test_loader, n_
     reqularized_run = ModelRun(model.state_dict(), regul_hparams)
     torch.save(reqularized_run, model_dir + fname_model)
     results.to_csv(results_dir + fname_results)
+    writer.close()
 
 
-def pruning(dataset, n_classes, train_loader, test_loader, n_epochs,pruning_rate,pruning_type):
+def pruning(dataset, n_classes, train_loader, test_loader, n_epochs, pruning_rate, pruning_type):
     """[summary]
 
     Args:
@@ -80,12 +86,12 @@ def pruning(dataset, n_classes, train_loader, test_loader, n_epochs,pruning_rate
                                                          hparams.scheduler,
                                                          pruning_rate,
                                                          pruning_type)
-        optimizer, scheduler = get_optimizer_and_scheduler(hparams,
+        optimizer, scheduler = get_optimizer_and_scheduler(pruning_hyperparameters,
                                                            model,
                                                            n_epochs)
-
+        tensorboard_logdir = pruning_hyperparameters.get_tensorboard_name()
+        writer = SummaryWriter(os.path.join(CN.TBOARD, tensorboard_logdir))
         model_pruned = Pruning(model, CN.DEVICE)
-
         if pruning_type == "thinet_normal":
             model_pruned.thinet(train_loader, pruning_rate)
         elif pruning_type == "thinet_batch":
@@ -93,7 +99,7 @@ def pruning(dataset, n_classes, train_loader, test_loader, n_epochs,pruning_rate
 
         results = train_model(model_pruned.model, CN.DEVICE, hparams.loss_function,
                               n_epochs, train_loader, test_loader, scheduler,
-                              optimizer, None, None, None)
+                              optimizer, None, None, None, writer)
 
         fname = pruning_hyperparameters.build_name()
         model_dir = f"./{dataset}/models/models_pruned/"
@@ -104,9 +110,10 @@ def pruning(dataset, n_classes, train_loader, test_loader, n_epochs,pruning_rate
         pruned_run = ModelRun(model.state_dict(), pruning_hyperparameters)
         torch.save(pruned_run, model_dir + fname_model)
         results.to_csv(results_dir + fname_results)
+        writer.close()
 
 
-def quantization(dataset, n_classes, train_loader, test_loader, n_epochs,nb_bits):
+def quantization(dataset, n_classes, train_loader, test_loader, n_epochs, nb_bits):
     listed_dir = f"./{dataset}/models/models_pruned"
     for f in os.listdir(listed_dir):
         logging.info(f"Quantizing model in {f}")
@@ -120,16 +127,19 @@ def quantization(dataset, n_classes, train_loader, test_loader, n_epochs,nb_bits
                                                      hparams.scheduler,
                                                      nb_bits)
 
-        optimizer, scheduler = get_optimizer_and_scheduler(hparams,
+        optimizer, scheduler = get_optimizer_and_scheduler(quanti_hparams,
                                                            model,
                                                            n_epochs)
         bc_model = BC(model, nb_bits, CN.DEVICE)
 
+        tensorboard_logdir = quanti_hparams.get_tensorboard_name()
+        writer = SummaryWriter(os.path.join(CN.TBOARD, tensorboard_logdir))
         results = train_model_quantization(bc_model, CN.DEVICE,
                                            hparams.loss_function, n_epochs,
                                            train_loader, test_loader,
                                            scheduler,
-                                           optimizer)
+                                           optimizer,
+                                           writer)
 
         fname = quanti_hparams.build_name()
         model_dir = f"./{dataset}/models/models_quantized/"
