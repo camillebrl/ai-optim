@@ -55,7 +55,7 @@ def run_train_epoch_quantization(bc_model, optimizer, device, trainloader, loss_
     return epoch_loss
 
 
-def run_train_epoch_clustering(model, optimizer, device, trainloader, loss_function, regul_coef=0.0001):
+def run_train_epoch_clustering(model, optimizer, device, trainloader, loss_function, nb_clusters, regul_coef=0.0001):
     model.train()
     epoch_loss = 0
     correct = 0
@@ -65,7 +65,7 @@ def run_train_epoch_clustering(model, optimizer, device, trainloader, loss_funct
         optimizer.zero_grad()
         outputs = model(inputs)
         loss = loss_function(outputs, targets)
-        loss += regul_deep_k_means(model,device,regul_coef)
+        loss += regul_deep_k_means(model,device,regul_coef,nb_clusters)
         loss.backward()
         optimizer.step()
         epoch_loss += loss.item()
@@ -209,7 +209,7 @@ def train_model_clustering(model, device, loss_function, n_epochs, trainloader,
         if overfit_counter > 10:
             logging.info(f"Early stopping at epoch {epoch}")
             break
-        train_loss = run_train_epoch_clustering(model, optimizer, device, trainloader, loss_function)
+        train_loss = run_train_epoch_clustering(model, optimizer, device, trainloader, loss_function, nb_clusters)
         valid_acc, valid_loss = run_validation_epoch(model, device, validloader)
         scheduler.step()
         loss_diff = valid_loss - train_loss
