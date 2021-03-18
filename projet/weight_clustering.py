@@ -9,9 +9,8 @@ import scipy as sc
 
 
 
-def regul_deep_k_means(model, device, regul_coef):
+def regul_deep_k_means(model, device, regul_coef, nb_clusters):
     # https://arxiv.org/pdf/1806.09228.pdf 
-    # min(E(W) +λ2[Tr(WTW)−Tr(FTWTWF)])
     target_modules = []
     for m in model.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
@@ -19,9 +18,18 @@ def regul_deep_k_means(model, device, regul_coef):
     regul = 0
     for i, m in enumerate(target_modules):
         w = m.weight.data.view(m.weight.data.size()[2],-1).to("cpu") # share s*N avec N=s*C*M
-        a,b,F = torch.svd(w)
-        regul += (regul_coef / 2) * (torch.trace(torch.transpose(w,0,1).matmul(w))) - torch.trace(torch.transpose(F,0,1).matmul(torch.transpose(w,0,1).matmul(w).matmul(F)))
-    return regul
+        mask=torch.Tensor([1]*nb_clusters + [0]*(w.size()[0] - nb_clusters)) # On prend les k plus grosses eigen values
+        _,S,_ = torch.svd(torch.transpose(w,0,1).matmul(w))
+        # somme des k plus grandes valeurs de S = trace(FtWtFW)
+        # d'après le théorème de Ky Fan 
+        # (https://papers.nips.cc/paper/2001/file/d5c186983b52c4551ee00f72316c6eaa-Paper.pdf p3)
+        # trace(transpose(F)*transpose(W)*W*F) = somme des k plus grandes eigenvalues(W)
+        # trace(transpose(W)*W) = somme des eigenvalues(W)
+        # Donc en gros: regularisation = (regul_coef/2) * somme des (s-k) plus petites eigenvalues(W)
+        sum_all_eigenvalues=torch.sum(S)
+        sum_largest_eigenvalues=torch.sum(torch.topk(S))
+        regul += (regul_coef / 2) * (sum_all_eigenvalues - sum_largest_eigenvalues)
+    return regul.to(device)
 
 
 def cluster_base(nb_clusters, tensor, device):

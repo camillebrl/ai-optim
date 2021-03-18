@@ -9,12 +9,13 @@ from architecture_ResNet import ResNet, Bottleneck, nums_blocks
 from hyperparameters import (RegularizationHyperparameters,
                              PruningHyperparameters,
                              QuantizationHyperparameters,
-                             ClusteringHyperparameters)
+                             ClusteringHyperparameters,
+                             Hyperparameters)
 from model_run import ModelRun
 from binary_connect import BC
 from regularisation import Orthogo
 from pruning_thinet import Pruning
-from train_validation import train_model, train_model_quantization, train_model_clustering
+from train_validation import train_model, train_model_quantization, train_model_clustering, train_model_distillation_hinton
 import constants as CN
 
 # fonctions pour identifier certains éléments du fichier lu
@@ -155,10 +156,11 @@ def quantization(dataset, n_classes, train_loader, test_loader, n_epochs, nb_bit
                                            scheduler,
                                            optimizer,
                                            writer)
-
+        regul_function=f[-findnth_right(f[::-1],"_",2):-findnth_left(f[::-1],"_",0)]
+        regul_coefficient=f[-findnth_right(f[::-1],"_",0):]
         pruning_type=f[findnth_left(f,"_",0):findnth_right(f,"_",2)]
         pruning_rate=f[findnth_left(f,"_",2):findnth_right(f,"_",3)]
-        fname = quanti_hparams.build_name()+"_"+pruning_type+"_"+pruning_rate
+        fname = quanti_hparams.build_name()+"_"+pruning_type+"_"+pruning_rate+"_"+regul_function+"_"+regul_coefficient
         model_dir = f"./{dataset}/models/models_quantized/"
         results_dir = f"./{dataset}/results/"
         fname_model = fname + ".run"
@@ -189,23 +191,75 @@ def clustering(dataset, n_classes, train_loader, test_loader, n_epochs, nb_clust
 
         tensorboard_logdir = clustering_hparams.get_tensorboard_name()
         writer = SummaryWriter(os.path.join(CN.TBOARD, tensorboard_logdir))
-        clustering_model, results = train_model_clustering(model, CN.DEVICE,
+        results = train_model_clustering(model, CN.DEVICE,
                                            hparams.loss_function, n_epochs,
                                            train_loader, test_loader,
                                            scheduler,
                                            optimizer,
                                            writer)
-
+        regul_function=f[-findnth_right(f[::-1],"_",2):-findnth_left(f[::-1],"_",0)]
+        regul_coefficient=f[-findnth_right(f[::-1],"_",0):]
         pruning_type=f[findnth_left(f,"_",0):findnth_right(f,"_",2)]
         pruning_rate=f[findnth_left(f,"_",2):findnth_right(f,"_",3)]
-        fname = clustering_hparams.build_name()+"_"+pruning_type+"_"+pruning_rate
+        fname = clustering_hparams.build_name()+"_"+pruning_type+"_"+pruning_rate+"_"+regul_function+"_"+regul_function
         model_dir = f"./{dataset}/models/models_clustered/"
         results_dir = f"./{dataset}/results/"
         fname_model = fname + ".run"
         fname_results = fname + ".csv"
         logging.info("Saving model clustered" + fname)
-        clustered_run = ModelRun(clustering_model.model.state_dict(), clustering_hparams)
+        clustered_run = ModelRun(model.state_dict(), clustering_hparams)
         torch.save(clustered_run, model_dir + fname_model)
+        results.to_csv(results_dir + fname_results)
+
+def distillation(dataset, models_to_distil, n_classes, train_loader, test_loader, n_epochs):
+    """[summary]
+
+    Args:
+        models_to_distil ([string]): "models_clustered", "models_quantized", "models_pruned", "models_regularized"
+    """
+    listed_dir = f"./{dataset}/models/models_{models_to_distil}"
+    for f in os.listdir(listed_dir):
+        logging.info(f"Distilling models in {f}")
+        model_to_distil, hparams = load_model_and_hyperparameters(f, listed_dir, n_classes)
+        distillation_hparams = Hyperparameters(hparams.learning_rate,
+                                                     hparams.weight_decay,
+                                                     hparams.momentum,
+                                                     hparams.loss_function,
+                                                     hparams.gradient_method,
+                                                     hparams.model_name,
+                                                     hparams.scheduler)
+
+        optimizer, scheduler = get_optimizer_and_scheduler(distillation_hparams,
+                                                           model_to_distil,
+                                                           n_epochs)
+        regul_function=f[-findnth_right(f[::-1],"_",2):-findnth_left(f[::-1],"_",0)]
+        regul_coefficient=f[-findnth_right(f[::-1],"_",0):]
+        fname_origin=RegularizationHyperparameters(hparams.learning_rate,
+                                                     hparams.weight_decay,
+                                                     hparams.momentum,
+                                                     hparams.loss_function,
+                                                     hparams.gradient_method,
+                                                     hparams.model_name,
+                                                     hparams.scheduler,
+                                                     regul_function,
+                                                     regul_coefficient).build_name()                                              
+        model_origin, hparams_origin = load_model_and_hyperparameters(fname_origin, f"./{dataset}/models/models_regularized", n_classes)
+        tensorboard_logdir = distillation_hparams.get_tensorboard_name()
+        writer = SummaryWriter(os.path.join(CN.TBOARD, tensorboard_logdir))
+        results = train_model_distillation_hinton(model_to_distil,model_origin, CN.DEVICE,
+                                           hparams.loss_function, n_epochs,
+                                           train_loader, test_loader,
+                                           scheduler,
+                                           optimizer,
+                                           writer)
+        fname = "Distilled_"+model_to_distil
+        model_dir = f"./{dataset}/models/models_distilled/"
+        results_dir = f"./{dataset}/results/"
+        fname_model = fname + ".run"
+        fname_results = fname + ".csv"
+        logging.info("Saving model clustered" + fname)
+        distilled_run = ModelRun(model_to_distil.state_dict(), distillation_hparams)
+        torch.save(distilled_run, model_dir + fname_model)
         results.to_csv(results_dir + fname_results)
 
 def get_optimizer_and_scheduler(hyperparameters, model, n_epochs):

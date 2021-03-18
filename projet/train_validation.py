@@ -48,7 +48,6 @@ def run_train_epoch_quantization(bc_model, optimizer, device, trainloader, loss_
         epoch_loss += loss.item()
         loss.backward()
         bc_model.restore()
-        # TODO : log the loss to tensorboard
         optimizer.step()
         bc_model.clip()
         _, predicted = outputs.max(1)
@@ -58,7 +57,7 @@ def run_train_epoch_quantization(bc_model, optimizer, device, trainloader, loss_
 
 def run_train_epoch_clustering(model, optimizer, device, trainloader, loss_function, regul_coef=0.0001):
     model.train()
-    train_loss = 0
+    epoch_loss = 0
     correct = 0
     total = 0
     for batch_idx, (inputs, targets) in tqdm(enumerate(trainloader)):
@@ -69,58 +68,29 @@ def run_train_epoch_clustering(model, optimizer, device, trainloader, loss_funct
         loss += regul_deep_k_means(model,device,regul_coef)
         loss.backward()
         optimizer.step()
-        train_loss += loss.item()
-        # TODO : log the loss to tensorboard
+        epoch_loss += loss.item()
         _, predicted = outputs.max(1)
-        total += targets.size(0)
-        correct += predicted.eq(targets).sum().item()
-    acc = 100. * correct / total
-    return acc
+    return epoch_loss
 
 
-def run_train_epoch_distillation_hilton(model_student, model_teacher, optimizer, device, trainloader, loss_function, regul_coef):
+def run_train_epoch_distillation_hinton(model_student, model_teacher, optimizer, device, trainloader, loss_function):
     model_student.train()
-    train_loss = 0
+    epoch_loss = 0
     correct = 0
     total = 0
+    model_distil= Distillation(model_student,model_teacher,device)
     for batch_idx, (inputs, targets) in tqdm(enumerate(trainloader)):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
         outputs_student = model_student(inputs)
-        loss = loss_function(outputs_student, targets)
         outputs_teacher = model_teacher(inputs)
-        loss += regul_coef*sum(outputs_teacher*torch.log(outputs_teacher/outputs_student))
-        loss.backward()
-        optimizer.step()
-        train_loss += loss.item()
-        # TODO : log the loss to tensorboard
-        _, predicted = outputs_student.max(1)
-        total += targets.size(0)
-        correct += predicted.eq(targets).sum().item()
-    acc = 100. * correct / total
-    return acc
-
-def run_train_epoch_distillation_hilton2(model_student, model_teacher, optimizer, device, trainloader, loss_function, regul_coef):
-    model_student.train()
-    train_loss = 0
-    correct = 0
-    total = 0
-    for batch_idx, (inputs, targets) in tqdm(enumerate(trainloader)):
-        inputs, targets = inputs.to(device), targets.to(device)
-        optimizer.zero_grad()
-        outputs_student = model_student(inputs)
         loss = loss_function(outputs_student, targets)
-        model_distil= Distillation(model_student,model_teacher,device)
-        loss += model_distil.distillation_hilton(trainloader,regul_coef)
+        loss += model_distil.distillation_hilton(outputs_student,outputs_teacher)
         loss.backward()
         optimizer.step()
-        train_loss += loss.item()
-        # TODO : log the loss to tensorboard
+        epoch_loss += loss.item()
         _, predicted = outputs_student.max(1)
-        total += targets.size(0)
-        correct += predicted.eq(targets).sum().item()
-    acc = 100. * correct / total
-    return acc
+    return epoch_loss
 
 
 def run_validation_epoch(model, device, validloader, loss_function):
@@ -152,7 +122,7 @@ def run_validation_epoch_quantization(bc_model, device, validloader, loss_functi
         for batch_idx, (inputs, targets) in enumerate(validloader):
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = bc_model.forward(inputs)
-            # TODO : log the loss to tensorboard
+
             _, predicted = outputs.max(1)
             total += targets.size(0)
             loss = loss_function(outputs, targets)
@@ -211,7 +181,6 @@ def train_model_quantization(bc_model, device, loss_function, n_epochs, trainloa
                                                   loss_function)
         valid_acc, valid_loss = run_validation_epoch_quantization(bc_model, device, validloader,
                                                                   loss_function)
-        # il diminue le lr quand la validation accuracy n'augmente plus
         scheduler.step()
         tboard.add_scalar("train/loss", train_loss, epoch)
         tboard.add_scalar("validation/loss", valid_loss, epoch)
@@ -231,7 +200,7 @@ def train_model_quantization(bc_model, device, loss_function, n_epochs, trainloa
 
 
 def train_model_clustering(model, device, loss_function, n_epochs, trainloader,
-                validloader, scheduler, optimizer, nb_clusters):
+                validloader, scheduler, optimizer, nb_clusters, tboard):
     best_acc_epoch = 0
     overfit_counter = 0
     previous_diff = 0
@@ -240,25 +209,57 @@ def train_model_clustering(model, device, loss_function, n_epochs, trainloader,
         if overfit_counter > 10:
             logging.info(f"Early stopping at epoch {epoch}")
             break
-        train_acc = run_train_epoch_clustering(model, optimizer, device, trainloader, loss_function)
-        valid_acc = run_validation_epoch(model, device, validloader)
+        train_loss = run_train_epoch_clustering(model, optimizer, device, trainloader, loss_function)
+        valid_acc, valid_loss = run_validation_epoch(model, device, validloader)
         scheduler.step()
-        accuracy_diff = train_acc - valid_acc
-        if accuracy_diff > previous_diff:
+        loss_diff = valid_loss - train_loss
+        if loss_diff > previous_diff:
             overfit_counter += 1
         else:
             overfit_counter = 0
         if valid_acc > best_acc_epoch:
             best_acc_epoch = valid_acc
-        previous_diff = accuracy_diff
+        previous_diff = loss_diff
     clustering_model=Cluster(model,nb_clusters,device)
     clustering_model.clustering()
     results = {"epoch": [], "validation_accuracy": []}
     for epoch in tqdm(range(1, n_epochs + 1)):
+        valid_acc, valid_loss = run_validation_epoch(clustering_model.model, device, validloader)
+        tboard.add_scalar("validation/loss", valid_loss, epoch)
+        tboard.add_scalar("validation/accuracy", valid_acc, epoch)
+        results["validation_accuracy"].append(valid_acc)
+        results["epoch"].append(epoch)
+    model=clustering_model.model
+    return pd.DataFrame.from_dict(results).set_index("epoch")
+
+
+def train_model_distillation_hinton(model_student, model_teacher, device, loss_function, 
+                        n_epochs, trainloader, validloader, scheduler, optimizer, tboard):
+    results = {"epoch": [], "train_loss": [], "validation_accuracy": []}
+    best_acc_epoch = 0
+    overfit_counter = 0
+    previous_diff = 0
+    logging.info(f"Running normal training on {n_epochs} epochs")
+    for epoch in tqdm(range(1, n_epochs + 1)):
         if overfit_counter > 10:
             logging.info(f"Early stopping at epoch {epoch}")
             break
-        valid_acc = run_validation_epoch(clustering_model.model, device, validloader)
+        train_loss = run_train_epoch_distillation_hinton(model_student, model_teacher, 
+                                        optimizer, device, trainloader, loss_function)
+        valid_acc, valid_loss = run_validation_epoch(model_student, device, validloader)
+        scheduler.step()
+        tboard.add_scalar("train/loss", train_loss, epoch)
+        tboard.add_scalar("validation/loss", valid_loss, epoch)
+        tboard.add_scalar("validation/accuracy", valid_acc, epoch)
+        results["train_loss"].append(train_loss)
         results["validation_accuracy"].append(valid_acc)
         results["epoch"].append(epoch)
-    return clustering_model, pd.DataFrame.from_dict(results).set_index("epoch")
+        loss_diff = valid_loss - train_loss
+        if loss_diff > previous_diff:
+            overfit_counter += 1
+        else:
+            overfit_counter = 0
+        if valid_acc > best_acc_epoch:
+            best_acc_epoch = valid_acc
+        previous_diff = loss_diff
+    return pd.DataFrame.from_dict(results).set_index("epoch")
