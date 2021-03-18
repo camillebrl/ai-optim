@@ -27,7 +27,7 @@ def regul_deep_k_means(model, device, regul_coef, nb_clusters):
         # trace(transpose(W)*W) = somme des eigenvalues(W)
         # Donc en gros: regularisation = (regul_coef/2) * somme des (s-k) plus petites eigenvalues(W)
         sum_all_eigenvalues=torch.sum(S)
-        sum_largest_eigenvalues=torch.sum(torch.topk(S,nb_clusters))
+        sum_largest_eigenvalues=torch.sum(torch.topk(S,nb_clusters).values)
         regul += (regul_coef / 2) * (sum_all_eigenvalues - sum_largest_eigenvalues)
     return regul.to(device)
 
