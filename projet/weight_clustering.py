@@ -9,7 +9,7 @@ import scipy as sc
 
 
 
-def regul_deep_k_means(model, device, regul_coef=0.001):
+def regul_deep_k_means(model, device, regul_coef):
     # https://arxiv.org/pdf/1806.09228.pdf 
     # min(E(W) +λ2[Tr(WTW)−Tr(FTWTWF)])
     target_modules = []
@@ -18,9 +18,9 @@ def regul_deep_k_means(model, device, regul_coef=0.001):
                 target_modules.append(m)
     regul = 0
     for i, m in enumerate(target_modules):
-        w = m.weight.data.view(m.weight.data.size()[2],-1) # share s*N avec N=s*C*M
-        F = torch.svd(w)
-        regul += min(np.mean(w)) + (regul_coef / 2) * (np.trace(np.transpose(w)*w)) - np.trace(np.transpose(F).matmul(np.transpose(w).matmul(w).matmul(F)))
+        w = m.weight.data.view(m.weight.data.size()[2],-1).to("cpu") # share s*N avec N=s*C*M
+        a,b,F = torch.svd(w)
+        regul += (regul_coef / 2) * (torch.trace(torch.transpose(w,0,1).matmul(w))) - torch.trace(torch.transpose(F,0,1).matmul(torch.transpose(w,0,1).matmul(w).matmul(F)))
     return regul
 
 

@@ -56,7 +56,7 @@ def run_train_epoch_quantization(bc_model, optimizer, device, trainloader, loss_
     return epoch_loss
 
 
-def run_train_epoch_clustering(model, optimizer, device, trainloader, loss_function, function, reg_coef):
+def run_train_epoch_clustering(model, optimizer, device, trainloader, loss_function, regul_coef=0.0001):
     model.train()
     train_loss = 0
     correct = 0
@@ -66,7 +66,7 @@ def run_train_epoch_clustering(model, optimizer, device, trainloader, loss_funct
         optimizer.zero_grad()
         outputs = model(inputs)
         loss = loss_function(outputs, targets)
-        loss += regul_deep_k_means(model, reg_coef, device)
+        loss += regul_deep_k_means(model,device,regul_coef)
         loss.backward()
         optimizer.step()
         train_loss += loss.item()
@@ -74,8 +74,6 @@ def run_train_epoch_clustering(model, optimizer, device, trainloader, loss_funct
         _, predicted = outputs.max(1)
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
-    clustering_model=Cluster(model)
-    clustering_model.clustering()
     acc = 100. * correct / total
     return acc
 
@@ -231,11 +229,10 @@ def train_model_quantization(bc_model, device, loss_function, n_epochs, trainloa
         previous_diff = loss_diff
     return pd.DataFrame.from_dict(results).set_index("epoch")
 
+
 def train_model_clustering(model, device, loss_function, n_epochs, trainloader,
-                validloader, scheduler, optimizer, model_orthogo, function,
-                reg_coef):
+                validloader, scheduler, optimizer, nb_clusters):
     best_acc_epoch = 0
-    results = {"epoch": [], "train_accuracy": [], "validation_accuracy": []}
     overfit_counter = 0
     previous_diff = 0
     logging.info(f"Running normal training on {n_epochs} epochs")
@@ -243,14 +240,9 @@ def train_model_clustering(model, device, loss_function, n_epochs, trainloader,
         if overfit_counter > 10:
             logging.info(f"Early stopping at epoch {epoch}")
             break
-        train_acc = run_train_epoch_clustering(model, optimizer, device, trainloader, loss_function,
-                                    model_orthogo, function, reg_coef)
+        train_acc = run_train_epoch_clustering(model, optimizer, device, trainloader, loss_function)
         valid_acc = run_validation_epoch(model, device, validloader)
         scheduler.step()
-        # TODO : use tensorboard
-        results["train_accuracy"].append(train_acc)
-        results["validation_accuracy"].append(valid_acc)
-        results["epoch"].append(epoch)
         accuracy_diff = train_acc - valid_acc
         if accuracy_diff > previous_diff:
             overfit_counter += 1
@@ -259,4 +251,14 @@ def train_model_clustering(model, device, loss_function, n_epochs, trainloader,
         if valid_acc > best_acc_epoch:
             best_acc_epoch = valid_acc
         previous_diff = accuracy_diff
-    return pd.DataFrame.from_dict(results).set_index("epoch")
+    clustering_model=Cluster(model,nb_clusters,device)
+    clustering_model.clustering()
+    results = {"epoch": [], "validation_accuracy": []}
+    for epoch in tqdm(range(1, n_epochs + 1)):
+        if overfit_counter > 10:
+            logging.info(f"Early stopping at epoch {epoch}")
+            break
+        valid_acc = run_validation_epoch(clustering_model.model, device, validloader)
+        results["validation_accuracy"].append(valid_acc)
+        results["epoch"].append(epoch)
+    return clustering_model, pd.DataFrame.from_dict(results).set_index("epoch")

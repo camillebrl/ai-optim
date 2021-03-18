@@ -1,6 +1,6 @@
 from import_dataset import train_cifar10, train_cifar100, test_cifar10, test_cifar100
 from utils import init_logging, init_parser
-from pipeline import regularization, quantization, pruning
+from pipeline import regularization, quantization, pruning, clustering
 
 init_logging()
 parser = init_parser()
@@ -16,5 +16,6 @@ elif dataset == "cifar100":
     test_loader = test_cifar100
 
 #regularization(dataset, "ResNet18", n_classes, train_loader, test_loader,200,0.3,"simple")
-pruning(dataset, n_classes, train_loader, test_loader, 200,0.2,"thinet_normal")
+#pruning(dataset, n_classes, train_loader, test_loader, 200,0.2,"thinet_normal")
 quantization(dataset, n_classes, train_loader, test_loader, 200, 4)
+#clustering(dataset,n_classes,train_loader,test_loader,200,4)

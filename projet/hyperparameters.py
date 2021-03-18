@@ -58,3 +58,14 @@ class RegularizationHyperparameters(Hyperparameters):
     def build_name(self):
         base_name = super().build_name()
         return f'Regul_{self.regul_function}_{self.regul_coef}_' + base_name
+
+class ClusteringHyperparameters(Hyperparameters):
+    def __init__(self, learning_rate, weight_decay, momentum, loss_function, gradient_method,
+                 model_name, scheduler, nb_clusters):
+        super().__init__(learning_rate, weight_decay, momentum, loss_function, gradient_method,
+                         model_name, scheduler)
+        self.nb_clusters = nb_clusters
+
+    def build_name(self):
+        base_name = super().build_name()
+        return f'Clustering_{self.nb_clusters}_' + base_name

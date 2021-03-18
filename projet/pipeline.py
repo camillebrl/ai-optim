@@ -8,13 +8,27 @@ from torch.utils.tensorboard import SummaryWriter
 from architecture_ResNet import ResNet, Bottleneck, nums_blocks
 from hyperparameters import (RegularizationHyperparameters,
                              PruningHyperparameters,
-                             QuantizationHyperparameters)
+                             QuantizationHyperparameters,
+                             ClusteringHyperparameters)
 from model_run import ModelRun
 from binary_connect import BC
 from regularisation import Orthogo
 from pruning_thinet import Pruning
-from train_validation import train_model, train_model_quantization
+from train_validation import train_model, train_model_quantization, train_model_clustering
 import constants as CN
+
+# fonctions pour identifier certains éléments du fichier lu
+def findnth_left(haystack, needle, n):
+    parts= haystack.split(needle, n+1)
+    if len(parts)<=n+1:
+        return -1
+    return len(haystack)+1-len(parts[-1])-len(needle)
+
+def findnth_right(haystack, needle, n):
+    parts= haystack.split(needle, n+1)
+    if len(parts)<=n+1:
+        return -1
+    return len(haystack)-len(parts[-1])-len(needle)
 
 
 def regularization(dataset, model_name, n_classes, train_loader, test_loader, n_epochs, regul_coef,
@@ -100,8 +114,9 @@ def pruning(dataset, n_classes, train_loader, test_loader, n_epochs, pruning_rat
         results = train_model(model_pruned.model, CN.DEVICE, hparams.loss_function,
                               n_epochs, train_loader, test_loader, scheduler,
                               optimizer, None, None, None, writer)
-
-        fname = pruning_hyperparameters.build_name()
+        regul_function = f[:findnth_right(f,"_",1)]
+        regul_coefficient = f[findnth_left(f,"_",1):findnth_right(f,"_",2)]
+        fname = pruning_hyperparameters.build_name()+"_"+regul_function+"_"+regul_coefficient
         model_dir = f"./{dataset}/models/models_pruned/"
         results_dir = f"./{dataset}/results/"
         fname_model = fname + ".run"
@@ -141,7 +156,9 @@ def quantization(dataset, n_classes, train_loader, test_loader, n_epochs, nb_bit
                                            optimizer,
                                            writer)
 
-        fname = quanti_hparams.build_name()
+        pruning_type=f[findnth_left(f,"_",0):findnth_right(f,"_",2)]
+        pruning_rate=f[findnth_left(f,"_",2):findnth_right(f,"_",3)]
+        fname = quanti_hparams.build_name()+"_"+pruning_type+"_"+pruning_rate
         model_dir = f"./{dataset}/models/models_quantized/"
         results_dir = f"./{dataset}/results/"
         fname_model = fname + ".run"
@@ -151,6 +168,45 @@ def quantization(dataset, n_classes, train_loader, test_loader, n_epochs, nb_bit
         torch.save(quantized_run, model_dir + fname_model)
         results.to_csv(results_dir + fname_results)
 
+
+def clustering(dataset, n_classes, train_loader, test_loader, n_epochs, nb_clusters):
+    listed_dir = f"./{dataset}/models/models_pruned"
+    for f in os.listdir(listed_dir):
+        logging.info(f"Clustering model in {f}")
+        model, hparams = load_model_and_hyperparameters(f, listed_dir, n_classes)
+        clustering_hparams = ClusteringHyperparameters(hparams.learning_rate,
+                                                     hparams.weight_decay,
+                                                     hparams.momentum,
+                                                     hparams.loss_function,
+                                                     hparams.gradient_method,
+                                                     hparams.model_name,
+                                                     hparams.scheduler,
+                                                     nb_clusters)
+
+        optimizer, scheduler = get_optimizer_and_scheduler(clustering_hparams,
+                                                           model,
+                                                           n_epochs)
+
+        tensorboard_logdir = clustering_hparams.get_tensorboard_name()
+        writer = SummaryWriter(os.path.join(CN.TBOARD, tensorboard_logdir))
+        clustering_model, results = train_model_clustering(model, CN.DEVICE,
+                                           hparams.loss_function, n_epochs,
+                                           train_loader, test_loader,
+                                           scheduler,
+                                           optimizer,
+                                           writer)
+
+        pruning_type=f[findnth_left(f,"_",0):findnth_right(f,"_",2)]
+        pruning_rate=f[findnth_left(f,"_",2):findnth_right(f,"_",3)]
+        fname = clustering_hparams.build_name()+"_"+pruning_type+"_"+pruning_rate
+        model_dir = f"./{dataset}/models/models_clustered/"
+        results_dir = f"./{dataset}/results/"
+        fname_model = fname + ".run"
+        fname_results = fname + ".csv"
+        logging.info("Saving model clustered" + fname)
+        clustered_run = ModelRun(clustering_model.model.state_dict(), clustering_hparams)
+        torch.save(clustered_run, model_dir + fname_model)
+        results.to_csv(results_dir + fname_results)
 
 def get_optimizer_and_scheduler(hyperparameters, model, n_epochs):
     if hyperparameters.gradient_method == "SGD":

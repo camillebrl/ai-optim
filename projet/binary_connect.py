@@ -2,15 +2,21 @@ import torch
 import torch.nn as nn
 import numpy as np
 import constants as CN
+import time
 
 
 def function_separation_on_tensor(nb_bits, tensor, device):
+    # t0=time.time()
     array_0 = np.linspace(start=-1, stop=1, num=2 ** nb_bits)
+    # print(1,time.time()-t0)
     # np.stack a une shape de taille a*b*c,4 (si tensor a une taille a*b*c).
     # Nous on veut en sortie a,b,c,4 donc on reshape
     full_array = np.tile(array_0, tensor.size()+(1,)) #copie l'élément tensor.size()+(1,) fois (reshape était trop long car pas adapté au gpu)
+    # print(2,time.time()-t0)
     tensor_0 = torch.tensor(full_array, device=device)
+    # print(3,time.time()-t0)
     x = torch.unsqueeze(tensor, dim=-1)  # on transforme tensor en a,b,c,1
+    # print(4,time.time()-t0)
     # on change le tensor en mettant dedans les valeurs les plus proches des valeurs à la même place de tensor_0
     results = torch.gather(tensor_0, dim=-1, index=torch.unsqueeze(
         torch.argmin((tensor_0 - x) ** 2, dim=-1), dim=-1))

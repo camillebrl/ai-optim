@@ -57,9 +57,10 @@ class Orthogo():
             width = np.prod(list(m.weight.data[0].size()))
             height = m.weight.data.size()[0]
             w = m.weight.data.view(width, height)
-            x = torch.rand(w.size()[0],w.size()[1])
-            u = w.matmul(x)
-            v = w.matmul(u)
+            v = torch.rand(w.size()[0],w.size()[1])
+            for _ in range(2):
+                u = (torch.transpose(w,0,1).matmul(w) - torch.eye(height,device=self.device)).matmul(v)
+                v = (torch.transpose(w,0,1).matmul(w) - torch.eye(height,device=self.device)).matmul(u)
             regul += reg_coef * (
                     torch.sum(v ** 2, dim=-1) / torch.sum(u ** 2, dim=-1))
         return regul
