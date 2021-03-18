@@ -196,6 +196,7 @@ def clustering(dataset, n_classes, train_loader, test_loader, n_epochs, nb_clust
                                            train_loader, test_loader,
                                            scheduler,
                                            optimizer,
+                                           nb_clusters,
                                            writer)
         regul_function=f[-findnth_right(f[::-1],"_",2):-findnth_left(f[::-1],"_",0)]
         regul_coefficient=f[-findnth_right(f[::-1],"_",0):]

@@ -18,7 +18,7 @@ class Hyperparameters():
         return fname
 
     def get_tensorboard_name(self):
-        now_as_str = datetime.now().strftime("%d_%m_%H:%M:%S_")
+        now_as_str = datetime.now().strftime("%d_%m_%H_%M_%S_")
         return now_as_str + self.build_name()
 
 
