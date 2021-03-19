@@ -6,6 +6,7 @@ from sklearn.cluster import KMeans
 from sklearn.utils.extmath import row_norms, squared_norm
 from numpy.random import RandomState
 import scipy as sc
+import time
 
 
 
@@ -19,7 +20,9 @@ def regul_deep_k_means(model, device, regul_coef, nb_clusters):
     for i, m in enumerate(target_modules):
         w = m.weight.data.view(m.weight.data.size()[2],-1).to("cpu") # share s*N avec N=s*C*M
         mask=torch.Tensor([1]*nb_clusters + [0]*(w.size()[0] - nb_clusters)) # On prend les k plus grosses eigen values
+        t0=time.time()
         _,S,_ = torch.svd(torch.transpose(w,0,1).matmul(w))
+        print(time.time()-t0)
         # somme des k plus grandes valeurs de S = trace(FtWtFW)
         # d'après le théorème de Ky Fan 
         # (https://papers.nips.cc/paper/2001/file/d5c186983b52c4551ee00f72316c6eaa-Paper.pdf p3)

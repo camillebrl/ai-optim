@@ -3,6 +3,7 @@ import logging
 import pandas as pd
 import torch
 from tqdm import tqdm
+import numpy as np
 
 from weight_clustering import regul_deep_k_means, Cluster
 from distillation import Distillation
@@ -39,11 +40,16 @@ def run_train_epoch(model, optimizer, device, trainloader, loss_function, model_
 def run_train_epoch_quantization(bc_model, optimizer, device, trainloader, loss_function):
     bc_model.model.train()
     epoch_loss = 0
+    array_0 = np.linspace(start=-1, stop=1, num=2 ** bc_model.nb_bits)
+    list_full_arrays=[]
+    for tensor in bc_model.target_modules:
+        full_array=np.tile(array_0, tensor.size()+(1,))
+        list_full_arrays.append(torch.tensor(full_array, device=device).half())
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
-        bc_model.binarization()
-        outputs = bc_model.forward(inputs)
+        bc_model.binarization(list_full_arrays)
+        outputs = bc_model.forward(inputs)  
         loss = loss_function(outputs, targets)
         epoch_loss += loss.item()
         loss.backward()
