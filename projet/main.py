@@ -15,7 +15,7 @@ elif dataset == "cifar100":
     train_loader = train_cifar100
     test_loader = test_cifar100
 
-regularization(dataset, "ResNet18", n_classes, train_loader, test_loader,200,0.3,"spectral_isometry")
-pruning(dataset, n_classes, train_loader, test_loader, 200,0.5,"thinet_normal")
-quantization(dataset, n_classes, train_loader, test_loader, 200, 4)
-distillation(dataset,"models_quantized",n_classes,train_loader,test_loader,200)
+#regularization(dataset, "ResNet18", n_classes, train_loader, test_loader,200,0.3,"spectral_isometry")
+#pruning(dataset, n_classes, train_loader, test_loader, 200,0.5,"thinet_normal")
+quantization(dataset, n_classes, train_loader, test_loader, 125, 4)
+distillation(dataset,"models_quantized",n_classes,train_loader,test_loader,125)

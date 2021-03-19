@@ -123,8 +123,13 @@ def run_validation_epoch_quantization(bc_model, device, validloader, loss_functi
     epoch_loss = 0
     correct = 0
     total = 0
+    array_0 = np.linspace(start=-1, stop=1, num=2 ** bc_model.nb_bits)
+    list_full_arrays=[]
+    for tensor in bc_model.target_modules:
+        full_array=np.tile(array_0, tensor.size()+(1,))
+        list_full_arrays.append(torch.tensor(full_array, device=device).half())
     with torch.no_grad():
-        bc_model.binarization()
+        bc_model.binarization(list_full_arrays)
         for batch_idx, (inputs, targets) in enumerate(validloader):
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = bc_model.forward(inputs)
