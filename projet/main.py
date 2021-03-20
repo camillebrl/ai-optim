@@ -24,7 +24,33 @@ if model_filename is not None:
     else:
         raise FileNotFoundError(f"The received file argument {model_filename} doesn't exist")
 
-# regularization(dataset, "ResNet18", n_classes, train_loader, test_loader,200,0.3,"spectral_isometry")
-pruning(model_filename, dataset, n_classes, train_loader, test_loader, 200, 0.5, "thinet_normal")
-quantization(model_filename, dataset, n_classes, train_loader, test_loader, 125, 4)
-distillation(model_filename, dataset, "models_quantized", n_classes, train_loader, test_loader, 125)
+regularization(dataset=dataset,
+               "ResNet18",
+               n_classes,
+               train_loader=train_loader,
+               test_loader=test_loader,
+               n_epochs=200,
+               regul_coef=0.3,
+               regul_function="spectral_isometry")
+pruning(model_fname=model_filename,
+        dataset=dataset,
+        n_classes=n_classes,
+        train_loader=train_loader,
+        test_loader=test_loader,
+        n_epochs=200,
+        pruning_rate=0.5,
+        pruning_type="thinet_normal")
+quantization(model_fname=model_filename,
+             dataset=dataset,
+             n_classes=n_classes,
+             train_loader=train_loader,
+             test_loader=test_loader,
+             n_epochs=125,
+             nb_bits=4)
+distillation(model_fname=model_filename,
+             dataset=dataset,
+             "models_quantized",
+             n_classes=n_classes,
+             train_loader=train_loader,
+             test_loader=test_loader,
+             n_epochs=125)
