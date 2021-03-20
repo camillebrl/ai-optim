@@ -157,7 +157,7 @@ def quantization(dataset, n_classes, train_loader, test_loader, n_epochs, nb_bit
                                            optimizer,
                                            writer)
         regul_function=f[-findnth_right(f[::-1],"_",2):-findnth_left(f[::-1],"_",0)]
-        regul_coefficient=f[-findnth_right(f[::-1],"_",0):]
+        regul_coefficient=f[-findnth_right(f[::-1],"_",0):-4]
         pruning_type=f[findnth_left(f,"_",0):findnth_right(f,"_",2)]
         pruning_rate=f[findnth_left(f,"_",2):findnth_right(f,"_",3)]
         fname = quanti_hparams.build_name()+"_"+pruning_type+"_"+pruning_rate+"_"+regul_function+"_"+regul_coefficient
@@ -233,8 +233,8 @@ def distillation(dataset, models_to_distil, n_classes, train_loader, test_loader
         optimizer, scheduler = get_optimizer_and_scheduler(distillation_hparams,
                                                            model_to_distil,
                                                            n_epochs)
-        regul_function=f[-findnth_right(f[::-1],"_",2):-findnth_left(f[::-1],"_",0)]
-        regul_coefficient=f[-findnth_right(f[::-1],"_",0):]
+        regul_function=f[-findnth_right(f[::-1],"_",1):-findnth_left(f[::-1],"_",0)]
+        regul_coefficient=f[-findnth_right(f[::-1],"_",0):-4]
         fname_origin=RegularizationHyperparameters(hparams.learning_rate,
                                                      hparams.weight_decay,
                                                      hparams.momentum,
@@ -242,9 +242,9 @@ def distillation(dataset, models_to_distil, n_classes, train_loader, test_loader
                                                      hparams.gradient_method,
                                                      hparams.model_name,
                                                      hparams.scheduler,
-                                                     regul_function,
-                                                     regul_coefficient).build_name()                                              
-        model_origin, hparams_origin = load_model_and_hyperparameters(fname_origin, f"./{dataset}/models/models_regularized", n_classes)
+                                                     regul_coefficient,
+                                                     regul_function).build_name()                                              
+        model_origin, hparams_origin = load_model_and_hyperparameters(fname_origin+".run", f"./{dataset}/models/models_regularized", n_classes)
         tensorboard_logdir = distillation_hparams.get_tensorboard_name()
         writer = SummaryWriter(os.path.join(CN.TBOARD, tensorboard_logdir))
         results = train_model_distillation_hinton(model_to_distil,model_origin, CN.DEVICE,

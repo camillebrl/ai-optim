@@ -90,6 +90,8 @@ def run_train_epoch_distillation_hinton(model_student, model_teacher, optimizer,
         optimizer.zero_grad()
         outputs_student = model_student(inputs)
         outputs_teacher = model_teacher(inputs)
+        print(outputs_student.type())
+        print(outputs_teacher.type())
         loss = loss_function(outputs_student, targets)
         loss += model_distil.distillation_hilton(outputs_student,outputs_teacher)
         loss.backward()
