@@ -218,7 +218,7 @@ def distillation(dataset, models_to_distil, n_classes, train_loader, test_loader
     Args:
         models_to_distil ([string]): "models_clustered", "models_quantized", "models_pruned", "models_regularized"
     """
-    listed_dir = f"./{dataset}/models/models_{models_to_distil}"
+    listed_dir = f"./{dataset}/models/{models_to_distil}"
     for f in os.listdir(listed_dir):
         logging.info(f"Distilling models in {f}")
         model_to_distil, hparams = load_model_and_hyperparameters(f, listed_dir, n_classes)
