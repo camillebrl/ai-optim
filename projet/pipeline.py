@@ -36,7 +36,8 @@ def findnth_right(haystack, needle, n):
 
 
 def regularization(dataset, model_name, n_classes, train_loader, test_loader, n_epochs, regul_coef,
-                   regul_function):
+                   regul_function, learning_rate=0.001, gradient_method="SGD", momentum=0.95, weight_decay=5e-5, 
+                   scheduler="CosineAnnealingLR", loss_function=nn.CrossEntropyLoss()):
     """[summary]
 
     Args:
@@ -44,13 +45,6 @@ def regularization(dataset, model_name, n_classes, train_loader, test_loader, n_
         regul_function ([type]): "simple", "double", "mutual_coherence" ou "spectral_isometry"
     """
     logging.info("Regularizing model")
-    # model_name = "ResNet18"
-    learning_rate = 0.001
-    weight_decay = 5e-5
-    momentum = 0.95
-    loss_function = nn.CrossEntropyLoss()
-    gradient_method = "SGD"
-    scheduler = "CosineAnnealingLR"
 
     regul_hparams = RegularizationHyperparameters(learning_rate, weight_decay,
                                                   momentum, loss_function,
@@ -212,13 +206,8 @@ def clustering(model_fname, dataset, n_classes, train_loader, test_loader, n_epo
     results.to_csv(results_dir + fname_results)
 
 
-def distillation(model_fname, dataset, models_to_distil, n_classes, train_loader, test_loader,
+def distillation(model_fname, dataset, n_classes, train_loader, test_loader,
                  n_epochs):
-    """[summary]
-
-    Args:
-        models_to_distil ([string]): "models_clustered", "models_quantized", "models_pruned", "models_regularized"
-    """
     listed_dir, f = os.path.split(model_fname)
     logging.info(f"Distilling model in {f}")
     model_to_distil, hparams = load_model_and_hyperparameters(f, listed_dir, n_classes)
@@ -275,7 +264,6 @@ def get_optimizer_and_scheduler(hyperparameters, model, n_epochs):
     elif hyperparameters.gradient_method == "Adam":
         optimizer = optim.Adam(model.parameters(),
                                lr=hyperparameters.learning_rate,
-                               momentum=hyperparameters.momentum,
                                weight_decay=hyperparameters.weight_decay)
     else:
         raise ValueError(
@@ -288,6 +276,8 @@ def get_optimizer_and_scheduler(hyperparameters, model, n_epochs):
     elif hyperparameters.scheduler == "ReduceOnPlateau":
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
                                                                T_max=n_epochs)
+    elif hyperparameters.scheduler == None:
+        scheduler = None
     else:
         raise ValueError(
             f"Invalid scheduler found : {hyperparameters.scheduler} found,"
