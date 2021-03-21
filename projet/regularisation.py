@@ -54,10 +54,10 @@ class Orthogo():
     def spectral_isometry_orthogonality_regularization(self, reg_coef):
         regul = 0
         for m in self.target_modules:
-            matrice=torch.transpose(w,0,1).matmul(w) - torch.eye(height,device=self.device)
             width = np.prod(list(m.weight.data[0].size()))
             height = m.weight.data.size()[0]
             w = m.weight.data.view(width, height)
+            matrice=torch.transpose(w,0,1).matmul(w) - torch.eye(height,device=self.device)
             v = torch.rand(w.size()[1],1,device=self.device)
             for _ in range(2):
                 u = (matrice).matmul(v)
