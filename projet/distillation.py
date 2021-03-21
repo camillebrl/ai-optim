@@ -24,5 +24,5 @@ class Distillation():
         output_teach=output_teacher / tau 
         output_stud=F.softmax(output_stud,dim=1)
         output_teach=F.softmax(output_teach,dim=1)
-        regul=-torch.sum(output_teach*torch.log(output_stud))*l
+        regul=torch.sum(output_teach*torch.log(output_teach/output_stud))*l
         return regul

@@ -249,7 +249,7 @@ def distillation(model_fname, dataset, n_classes, train_loader, test_loader,
     results_dir = f"./{dataset}/results/"
     fname_model = fname + ".run"
     fname_results = fname + ".csv"
-    logging.info("Saving model clustered" + fname)
+    logging.info("Saving model distilled" + fname)
     distilled_run = ModelRun(model_to_distil.state_dict(), distillation_hparams)
     torch.save(distilled_run, model_dir + fname_model)
     results.to_csv(results_dir + fname_results)
