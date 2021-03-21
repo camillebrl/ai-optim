@@ -128,17 +128,18 @@ def run_validation_epoch(model, device, validloader, loss_function, model_orthog
     return acc, epoch_loss
 
 
-def run_validation_epoch_distillation_hinton(model,device,validloader,loss_function):
-    model.eval()
+def run_validation_epoch_distillation_hinton(model_student,model_teacher,device,validloader,loss_function):
+    model_student.eval()
     correct = 0
     total = 0
     epoch_loss = 0
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(validloader):
             inputs, targets = inputs.to(device), targets.to(device)
-            outputs = model(inputs)
-            loss = loss_function(outputs, targets)
-            distillation_hilton(outputs_student,outputs_teacher)
+            outputs_student = model_student(inputs)
+            outputs_teacher = model_teacher(inputs)
+            loss = loss_function(outputs_student, targets)
+            loss+=distillation_hilton(outputs_student,outputs_teacher)
             epoch_loss += loss.item()
             _, predicted = outputs.max(1)
             total += targets.size(0)
@@ -290,7 +291,10 @@ def train_model_distillation_hinton(model_student, model_teacher, device, loss_f
             break
         train_loss = run_train_epoch_distillation_hinton(model_student, model_teacher, 
                                         optimizer, device, trainloader, loss_function)
-        valid_acc, valid_loss = run_validation_epoch_distillation_hinton(model_student, device, validloader,loss_function)
+        valid_acc, valid_loss = run_validation_epoch_distillation_hinton(model_student, 
+                                                                        model_teacher, 
+                                                                        device, validloader,
+                                                                        loss_function)
         if scheduler is not None:
             scheduler.step(valid_loss)
         tboard.add_scalar("train/loss", train_loss, epoch)
