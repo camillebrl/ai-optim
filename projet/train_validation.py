@@ -98,7 +98,7 @@ def run_train_epoch_distillation_hinton(model_student, model_teacher, optimizer,
     return epoch_loss
 
 
-def run_validation_epoch(model, device, validloader, loss_function):
+def run_validation_epoch(model, device, validloader, loss_function, function, reg_coef):
     model.eval()
     correct = 0
     total = 0
@@ -187,7 +187,7 @@ def train_model(model, device, loss_function, n_epochs, trainloader, validloader
             break
         train_loss = run_train_epoch(model, optimizer, device, trainloader, loss_function,
                                      model_orthogo, function, reg_coef)
-        valid_acc, valid_loss = run_validation_epoch(model, device, validloader, loss_function)
+        valid_acc, valid_loss = run_validation_epoch(model, device, validloader, loss_function, function, reg_coef)
         if scheduler is not None:
             scheduler.step()
         tboard.add_scalar("train/loss", train_loss, epoch)
