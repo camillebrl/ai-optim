@@ -36,7 +36,7 @@ class Orthogo():
             regul += reg_coef * (torch.norm(
                 torch.transpose(w, 0, 1).matmul(w) - torch.eye(height,
                                                                device=self.device)) ** 2 + torch.norm(
-                w.matmul(torch.transpose(w, 0, 1)) - torch.eye(height,
+                w.matmul(torch.transpose(w, 0, 1)) - torch.eye(width,
                                                                device=self.device)) ** 2)
         return regul
 
@@ -54,12 +54,13 @@ class Orthogo():
     def spectral_isometry_orthogonality_regularization(self, reg_coef):
         regul = 0
         for m in self.target_modules:
+            matrice=torch.transpose(w,0,1).matmul(w) - torch.eye(height,device=self.device)
             width = np.prod(list(m.weight.data[0].size()))
             height = m.weight.data.size()[0]
             w = m.weight.data.view(width, height)
-            v = torch.rand(w.size()[1],w.size()[0],device=self.device)
+            v = torch.rand(w.size()[1],1,device=self.device)
             for _ in range(2):
-                u = (torch.transpose(w,0,1).matmul(w) - torch.eye(height,device=self.device)).matmul(v)
-                v = (torch.transpose(w,0,1).matmul(w) - torch.eye(height,device=self.device)).matmul(u)
-            regul += reg_coef * ( torch.norm(v) / torch.norm(u) )
+                u = (matrice).matmul(v)
+                v = (matrice).matmul(u)
+            regul += reg_coef * ( torch.sum(v**2) / torch.sum(u**2) )
         return regul

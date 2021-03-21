@@ -6,7 +6,7 @@ from tqdm import tqdm
 import numpy as np
 
 from weight_clustering import regul_deep_k_means, Cluster
-from distillation import Distillation
+from distillation import distillation_hilton
 
 
 def run_train_epoch(model, optimizer, device, trainloader, loss_function, model_orthogo, function,
@@ -84,14 +84,13 @@ def run_train_epoch_distillation_hinton(model_student, model_teacher, optimizer,
     epoch_loss = 0
     correct = 0
     total = 0
-    model_distil= Distillation(model_student,model_teacher,device)
     for batch_idx, (inputs, targets) in tqdm(enumerate(trainloader)):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
         outputs_student = model_student(inputs)
         outputs_teacher = model_teacher(inputs)
         loss = loss_function(outputs_student, targets)
-        loss += model_distil.distillation_hilton(outputs_student,outputs_teacher)
+        loss += distillation_hilton(outputs_student,outputs_teacher)
         loss.backward()
         optimizer.step()
         epoch_loss += loss.item()
@@ -109,6 +108,37 @@ def run_validation_epoch(model, device, validloader, loss_function):
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = model(inputs)
             loss = loss_function(outputs, targets)
+            if function == "simple":
+                loss += model_orthogo.soft_orthogonality_regularization(reg_coef)
+            elif function == "double":
+                loss += model_orthogo.double_soft_orthogonality_regularization(
+                    reg_coef)
+            elif function == "mutual_coherence":
+                loss += model_orthogo.mutual_coherence_orthogonality_regularization(
+                    reg_coef)
+            elif function == "spectral_isometry":
+                loss += model_orthogo.spectral_isometry_orthogonality_regularization(
+                    reg_coef)
+            epoch_loss += loss.item()
+            _, predicted = outputs.max(1)
+            total += targets.size(0)
+            correct += predicted.eq(targets).sum().item()
+    acc = 100. * correct / total
+    epoch_loss /= len(validloader)
+    return acc, epoch_loss
+
+
+def run_validation_epoch_distillation_hinton(model,device,validloader,loss_function):
+    model.eval()
+    correct = 0
+    total = 0
+    epoch_loss = 0
+    with torch.no_grad():
+        for batch_idx, (inputs, targets) in enumerate(validloader):
+            inputs, targets = inputs.to(device), targets.to(device)
+            outputs = model(inputs)
+            loss = loss_function(outputs, targets)
+            distillation_hilton(outputs_student,outputs_teacher)
             epoch_loss += loss.item()
             _, predicted = outputs.max(1)
             total += targets.size(0)
@@ -133,7 +163,6 @@ def run_validation_epoch_quantization(bc_model, device, validloader, loss_functi
         for batch_idx, (inputs, targets) in enumerate(validloader):
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = bc_model.forward(inputs)
-
             _, predicted = outputs.max(1)
             total += targets.size(0)
             loss = loss_function(outputs, targets)
@@ -260,7 +289,7 @@ def train_model_distillation_hinton(model_student, model_teacher, device, loss_f
             break
         train_loss = run_train_epoch_distillation_hinton(model_student, model_teacher, 
                                         optimizer, device, trainloader, loss_function)
-        valid_acc, valid_loss = run_validation_epoch(model_student, device, validloader,loss_function)
+        valid_acc, valid_loss = run_validation_epoch_distillation_hinton(model_student, device, validloader,loss_function)
         if scheduler is not None:
             scheduler.step()
         tboard.add_scalar("train/loss", train_loss, epoch)
