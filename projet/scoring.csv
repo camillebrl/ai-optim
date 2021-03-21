@@ -1,1 +1,6 @@
-model,flops,params,score_flops,score_params,final_score
+model,flops,params,score_flops,score_params,final_score,accuracy
+
+models_quantizedQuantization_4_ResNet18_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR_thinet_normal_0.2_Regul_simple_0.3,4553568256.0,1744866.75,5.4575393574555955,0.31230941182724625,5.7698487692828415,92.72
+
+models_quantizedQuantization_4_ResNet34_CrossEntropyLoss()_0.001_0.95_5e-05_SGD_CosineAnnealingLR_thinet_normal_0.2_Regul_simple_0.3,7985950720.0,2940097.375,9.571315924313412,0.5262408042912622,10.097556728604674,92.83
+

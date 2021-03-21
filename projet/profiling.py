@@ -117,6 +117,7 @@ def scoring(dataset,model_type):
         ref_params = 5586981
         ref_flops  = 834362880
         for model in os.listdir(listed_dir):
+            model_name=model[:-4]
             logging.info(f"profiling model in {model}")
             model, hparams = load_model_and_hyperparameters(model, listed_dir, int(dataset[dataset.find("1"):]))
 
@@ -135,8 +136,11 @@ def scoring(dataset,model_type):
             score_params = params / ref_params
             score = score_flops + score_params
 
+            accuracy_table=pd.read_csv(f"./{dataset}/results/{model_name}.csv")
+            accuracy=max(accuracy_table["validation_accuracy"])
+
             with open("./scoring.csv",mode="a") as scoring_file:
                 scoring_writer = csv.writer(scoring_file,delimiter=",",quotechar='"')
-                scoring_writer.writerow(model_type+model,flops,params,score_flops,score_params,score)
+                scoring_writer.writerow([model_type+str(model_name),flops,params,score_flops,score_params,score,accuracy])
 
-scoring("cifar10","models_regularized")
+scoring("cifar10","models_quantized")

@@ -244,7 +244,7 @@ def distillation(model_fname, dataset, n_classes, train_loader, test_loader,
                                               scheduler,
                                               optimizer,
                                               writer)
-    fname = "Distilled_" + model_to_distil
+    fname = "Distilled_" + f
     model_dir = f"./{dataset}/models/models_distilled/"
     results_dir = f"./{dataset}/results/"
     fname_model = fname + ".run"
