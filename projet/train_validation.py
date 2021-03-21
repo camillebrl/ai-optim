@@ -190,7 +190,7 @@ def train_model(model, device, loss_function, n_epochs, trainloader, validloader
         valid_acc, valid_loss = run_validation_epoch(model, device, validloader, loss_function,
                                     model_orthogo, function, reg_coef)
         if scheduler is not None:
-            scheduler.step()
+            scheduler.step(valid_loss)
         tboard.add_scalar("train/loss", train_loss, epoch)
         tboard.add_scalar("validation/loss", valid_loss, epoch)
         tboard.add_scalar("validation/accuracy", valid_acc, epoch)
@@ -224,7 +224,7 @@ def train_model_quantization(bc_model, device, loss_function, n_epochs, trainloa
         valid_acc, valid_loss = run_validation_epoch_quantization(bc_model, device, validloader,
                                                                   loss_function)
         if scheduler is not None:
-            scheduler.step()
+            scheduler.step(valid_loss)
         tboard.add_scalar("train/loss", train_loss, epoch)
         tboard.add_scalar("validation/loss", valid_loss, epoch)
         tboard.add_scalar("validation/accuracy", valid_acc, epoch)
@@ -255,7 +255,7 @@ def train_model_clustering(model, device, loss_function, n_epochs, trainloader,
         train_loss = run_train_epoch_clustering(model, optimizer, device, trainloader, loss_function, nb_clusters)
         valid_acc, valid_loss = run_validation_epoch(model, device, validloader)
         if scheduler is not None:
-            scheduler.step()
+            scheduler.step(valid_loss)
         loss_diff = valid_loss - train_loss
         if loss_diff > previous_diff:
             overfit_counter += 1
@@ -292,7 +292,7 @@ def train_model_distillation_hinton(model_student, model_teacher, device, loss_f
                                         optimizer, device, trainloader, loss_function)
         valid_acc, valid_loss = run_validation_epoch_distillation_hinton(model_student, device, validloader,loss_function)
         if scheduler is not None:
-            scheduler.step()
+            scheduler.step(valid_loss)
         tboard.add_scalar("train/loss", train_loss, epoch)
         tboard.add_scalar("validation/loss", valid_loss, epoch)
         tboard.add_scalar("validation/accuracy", valid_acc, epoch)
