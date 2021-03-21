@@ -274,8 +274,12 @@ def get_optimizer_and_scheduler(hyperparameters, model, n_epochs):
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
                                                                T_max=n_epochs)
     elif hyperparameters.scheduler == "ReduceOnPlateau":
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
-                                                               T_max=n_epochs)
+        scheduler = torch.optim.lr_scheduler.ReduceOnPlateau(optimizer,
+                                                               mode="min",
+                                                               factor=0.1,
+                                                               patience=5,
+                                                               min_lr=1e-8,
+                                                               verbose=True)
     elif hyperparameters.scheduler == None:
         scheduler = None
     else:
