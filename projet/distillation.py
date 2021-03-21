@@ -7,7 +7,7 @@ import tqdm
 import torch.nn.functional as F
 
 
-def distillation_hilton(self, output_student,output_teacher, tau=2, l=1):
+def distillation_hilton(output_student,output_teacher, tau=2, l=1):
     regul = 0
     output_stud=output_student / tau 
     output_teach=output_teacher / tau 
