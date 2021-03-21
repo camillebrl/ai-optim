@@ -141,7 +141,7 @@ def run_validation_epoch_distillation_hinton(model_student,model_teacher,device,
             loss = loss_function(outputs_student, targets)
             loss+=distillation_hilton(outputs_student,outputs_teacher)
             epoch_loss += loss.item()
-            _, predicted = outputs.max(1)
+            _, predicted = outputs_student.max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
     acc = 100. * correct / total
