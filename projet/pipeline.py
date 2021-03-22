@@ -222,7 +222,7 @@ def distillation(model_fname, dataset, n_classes, train_loader, test_loader,
     optimizer, scheduler = get_optimizer_and_scheduler(distillation_hparams,
                                                        model_to_distil,
                                                        n_epochs)
-    regul_function = f[-findnth_right(f[::-1], "_", 1):-findnth_left(f[::-1], "_", 0)]
+    regul_function = f[-findnth_right(f[::-1], "_lugeR", 0):-findnth_left(f[::-1], "_", 0)]
     regul_coefficient = f[-findnth_right(f[::-1], "_", 0):-4]
     fname_origin = RegularizationHyperparameters(hparams.learning_rate,
                                                  hparams.weight_decay,

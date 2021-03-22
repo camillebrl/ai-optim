@@ -13,6 +13,5 @@ def distillation_hilton(output_student,output_teacher, tau=2, l=1):
     output_teach=output_teacher / tau 
     output_stud=F.softmax(output_stud,dim=-1)
     output_teach=F.softmax(output_teach,dim=-1)
-    regul=torch.sum(output_teach*torch.log(output_teach/output_stud))*l
-    print(regul)
+    regul=torch.sum(output_teach*torch.log(((output_teach/(output_stud +0.001))) + 0.001))*l
     return regul
