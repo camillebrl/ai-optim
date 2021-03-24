@@ -286,9 +286,9 @@ def train_model_distillation_hinton(model_student, model_teacher, device, loss_f
     previous_diff = 0
     logging.info(f"Running normal training on {n_epochs} epochs")
     for epoch in tqdm(range(1, n_epochs + 1)):
-        if overfit_counter > 10:
-            logging.info(f"Early stopping at epoch {epoch}")
-            break
+        # if overfit_counter > 10:
+        #     logging.info(f"Early stopping at epoch {epoch}")
+        #     break
         train_loss = run_train_epoch_distillation_hinton(model_student, model_teacher, 
                                         optimizer, device, trainloader, loss_function)
         valid_acc, valid_loss = run_validation_epoch_distillation_hinton(model_student, 

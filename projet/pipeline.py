@@ -120,7 +120,7 @@ def pruning(model_fname, dataset, n_classes, train_loader, test_loader, n_epochs
     fname_model = fname + ".run"
     fname_results = fname + ".csv"
     logging.info("Saving model pruned" + fname)
-    pruned_run = ModelRun(model.state_dict(), pruning_hyperparameters)
+    pruned_run = ModelRun(model_pruned.model.state_dict(), pruning_hyperparameters)
     torch.save(pruned_run, model_dir + fname_model)
     results.to_csv(results_dir + fname_results)
     writer.close()
@@ -161,7 +161,7 @@ def quantization(model_fname, dataset, n_classes, train_loader, test_loader, n_e
     fname_model = fname + ".run"
     fname_results = fname + ".csv"
     logging.info("Saving model quantized" + fname)
-    quantized_run = ModelRun(model.state_dict(), quanti_hparams)
+    quantized_run = ModelRun(bc_model.model.state_dict(), quanti_hparams)
     torch.save(quantized_run, model_dir + fname_model)
     results.to_csv(results_dir + fname_results)
 
@@ -244,7 +244,7 @@ def distillation(model_fname, dataset, n_classes, train_loader, test_loader,
                                               scheduler,
                                               optimizer,
                                               writer)
-    fname = "Distilled_" + f
+    fname = "Distilled_" + f[:-4]
     model_dir = f"./{dataset}/models/models_distilled/"
     results_dir = f"./{dataset}/results/"
     fname_model = fname + ".run"
